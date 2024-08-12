@@ -4,9 +4,6 @@ using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Channels;
-using System.Threading.Tasks;
 
 using Xbim.Common;
 using Xbim.Ifc4.Interfaces;
@@ -16,7 +13,6 @@ namespace Bingosoft.Net.IfcDetail;
 public sealed class BimxJsonCreator : IDisposable
 {
     private static readonly JsonWriterOptions Jwo = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-    private static readonly BoundedChannelOptions Bco = new(1000) { FullMode = BoundedChannelFullMode.Wait, SingleReader = true, SingleWriter = true };
     private readonly FileInfo _targetFile;
     private readonly ArrayBufferWriter<byte> _bufferMaterial;
     private readonly Utf8JsonWriter _writerMaterial;
@@ -26,9 +22,6 @@ public sealed class BimxJsonCreator : IDisposable
 
     private readonly ArrayBufferWriter<byte> _bufferProperty;
     private readonly Utf8JsonWriter _writerProperty;
-
-    private readonly Channel<IPersistEntity> _channel;
-    private readonly Task _backgroundTask;
 
     public BimxJsonCreator(FileInfo jsonTargetFile)
     {
@@ -46,9 +39,6 @@ public sealed class BimxJsonCreator : IDisposable
         _writerMaterial.WriteStartObject();
         _writerType.WriteStartObject();
         _writerProperty.WriteStartObject();
-
-        // _channel = Channel.CreateBounded<IPersistEntity>(Bco);
-        // _backgroundTask = Task.Factory.StartNew(BTask, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.AttachedToParent, TaskScheduler.Default).Unwrap();
     }
 
     public void BTask(IPersistEntity item)
@@ -479,108 +469,26 @@ public sealed class BimxJsonCreator : IDisposable
         _writerProperty.Flush();
         var jsonProperties = Encoding.UTF8.GetString(_bufferProperty.WrittenSpan);
 
-        using (var stream = File.OpenWrite(_targetFile.FullName))
-        using (var writer = new Utf8JsonWriter(stream, Jwo))
-        {
-            writer.WriteStartObject();
+        using var stream = File.OpenWrite(_targetFile.FullName);
+        using var writer = new Utf8JsonWriter(stream, Jwo);
+        writer.WriteStartObject();
 
-            writer.WritePropertyName("materials");
-            writer.WriteRawValue(jsonMaterial);
+        writer.WritePropertyName("materials");
+        writer.WriteRawValue(jsonMaterial);
 
-            writer.WritePropertyName("types");
-            writer.WriteRawValue(jsonType);
+        writer.WritePropertyName("types");
+        writer.WriteRawValue(jsonType);
 
-            writer.WritePropertyName("properties");
-            writer.WriteRawValue(jsonProperties);
+        writer.WritePropertyName("properties");
+        writer.WriteRawValue(jsonProperties);
 
-            writer.WriteEndObject();
-        }
+        writer.WriteEndObject();
     }
-
-
-    /*
-    public async Task WriteItem(IPersistEntity entity)
-    {
-        while (!await _channel.Writer.WaitToWriteAsync())
-        { }
-
-        await _channel.Writer.WriteAsync(entity);
-    }
-
-    public async Task Complite()
-    {
-        _channel.Writer.Complete();
-        await _backgroundTask;
-    }
-    */
 
     public void Dispose()
     {
         _writerMaterial?.Dispose();
         _writerType?.Dispose();
         _writerProperty?.Dispose();
-    }
-}
-
-public static class BimXExtensions
-{
-    public static string AsString(this IfcSpaceTypeEnum enum1)
-    {
-        return enum1 switch
-        {
-            IfcSpaceTypeEnum.SPACE => "SPACE",
-            IfcSpaceTypeEnum.PARKING => "PARKING",
-            IfcSpaceTypeEnum.GFA => "GFA",
-            IfcSpaceTypeEnum.INTERNAL => "INTERNAL",
-            IfcSpaceTypeEnum.EXTERNAL => "EXTERNAL",
-            IfcSpaceTypeEnum.USERDEFINED => "USERDEFINED",
-            IfcSpaceTypeEnum.NOTDEFINED => "NOTDEFINED",
-            _ => "NOTDEFINED"
-        };
-    }
-
-    public static string AsString(this IfcColumnTypeEnum enum1)
-    {
-        return enum1 switch
-        {
-            IfcColumnTypeEnum.COLUMN => "COLUMN",
-            IfcColumnTypeEnum.PILASTER => "PILASTER",
-            IfcColumnTypeEnum.USERDEFINED => "USERDEFINED",
-            IfcColumnTypeEnum.NOTDEFINED => "NOTDEFINED",
-            _ => "NOTDEFINED"
-        };
-    }
-
-    public static string AsString(this IfcWallTypeEnum enum1)
-    {
-        return enum1 switch
-        {
-            IfcWallTypeEnum.MOVABLE => "MOVABLE",
-            IfcWallTypeEnum.PARAPET => "PARAPET",
-            IfcWallTypeEnum.PARTITIONING => "PARTITIONING",
-            IfcWallTypeEnum.PLUMBINGWALL => "PLUMBINGWALL",
-            IfcWallTypeEnum.SHEAR => "SHEAR",
-            IfcWallTypeEnum.SOLIDWALL => "SOLIDWALL",
-            IfcWallTypeEnum.STANDARD => "STANDARD",
-            IfcWallTypeEnum.POLYGONAL => "POLYGONAL",
-            IfcWallTypeEnum.ELEMENTEDWALL => "ELEMENTEDWALL",
-            IfcWallTypeEnum.USERDEFINED => "USERDEFINED",
-            IfcWallTypeEnum.NOTDEFINED => "NOTDEFINED",
-            _ => "NOTDEFINED"
-        };
-    }
-
-    public static string AsString(this IfcSlabTypeEnum enum1)
-    {
-        return enum1 switch
-        {
-            IfcSlabTypeEnum.FLOOR => "FLOOR",
-            IfcSlabTypeEnum.ROOF => "RoROOFof",
-            IfcSlabTypeEnum.LANDING => "LANDING",
-            IfcSlabTypeEnum.BASESLAB => "BASESLAB",
-            IfcSlabTypeEnum.USERDEFINED => "USERDEFINED",
-            IfcSlabTypeEnum.NOTDEFINED => "NOTDEFINED",
-            _ => "UNKNOWN"
-        };
     }
 }
