@@ -7,7 +7,7 @@
         <Title>ifc_detail</Title>
         <Authors>Bingosoft</Authors>
         <Copyright>Bingosoft</Copyright>
-        <AssemblyVersion>0.0.2</AssemblyVersion>
+        <AssemblyVersion>0.0.4</AssemblyVersion>
         <FileVersion>$(AssemblyVersion)</FileVersion>
         <Version>$(AssemblyVersion)</Version>
         <ServerGarbageCollection>false</ServerGarbageCollection>
