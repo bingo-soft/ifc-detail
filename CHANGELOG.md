@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.7] - 2026-04-11
+
+### Features
+
+- **Performance profiling**: Added built-in performance profiling with `--profile` CLI flag
+- **Detailed metrics**: Tracks execution time, memory usage, GC collections, and throughput
+- **Formatted report**: Beautiful console output with execution statistics
+
+### Usage
+
+```bash
+ifc_metadata input.ifc output.json --profile
+```
+
+### Report includes
+
+- Total execution time and per-entity processing time
+- Throughput (entities/second)
+- Memory usage (initial, final, used, peak)
+- Garbage collection statistics (Gen 0/1/2)
+- Total entities processed
+
 ## [0.0.6] - 2026-04-11
 
 ### Performance Improvements

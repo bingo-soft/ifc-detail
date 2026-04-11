@@ -47,8 +47,10 @@ internal class MaterialExtractor(FileInfo jsonTargetFile)
     };
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public void Start(FileInfo ifcFileInfo)
+    public void Start(FileInfo ifcFileInfo, bool enableProfiling = false)
     {
+        PerformanceProfiler profiler = enableProfiling ? new PerformanceProfiler() : null;
+
         using var model = IfcStore.Open(ifcFileInfo.FullName, accessMode: Xbim.IO.XbimDBAccess.Read);
         using var jsonWriter = new BimxJsonCreator(jsonTargetFile);
 
@@ -60,11 +62,18 @@ internal class MaterialExtractor(FileInfo jsonTargetFile)
                 if (targetType.IsAssignableFrom(itemType))
                 {
                     jsonWriter.BTask(item);
+                    profiler?.RecordEntity();
                     break;
                 }
             }
         }
 
         jsonWriter.CreateJson();
+
+        if (enableProfiling)
+        {
+            profiler?.PrintReport();
+            profiler?.Dispose();
+        }
     }
 }
