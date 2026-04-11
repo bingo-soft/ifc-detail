@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
@@ -14,40 +14,53 @@ internal class MaterialExtractor(FileInfo jsonTargetFile)
 {
     public static readonly JsonWriterOptions Jwo = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
+    private static readonly HashSet<Type> TargetTypes = new()
+    {
+        typeof(IIfcMaterial),
+        typeof(IIfcMaterialList),
+        typeof(IIfcMaterialLayerSet),
+        typeof(IIfcMaterialLayer),
+        typeof(IIfcMaterialConstituent),
+        typeof(IIfcMaterialConstituentSet),
+        typeof(IIfcMaterialLayerSetUsage),
+        typeof(IIfcSpaceType),
+        typeof(IIfcColumnType),
+        typeof(IIfcWallType),
+        typeof(IIfcSlabType),
+        typeof(IIfcCoveringType),
+        typeof(IIfcStairFlightType),
+        typeof(IIfcPlateType),
+        typeof(IIfcMemberType),
+        typeof(IIfcCurtainWallType),
+        typeof(IIfcDistributionElementType),
+        typeof(IIfcBuildingElementProxyType),
+        typeof(IIfcPipeSegmentType),
+        typeof(IIfcFurnitureType),
+        typeof(IIfcRelDefinesByType),
+        typeof(IIfcPropertySingleValue),
+        typeof(IIfcPropertySet),
+        typeof(IIfcRelDefinesByProperties),
+        typeof(IIfcDoorLiningProperties),
+        typeof(IIfcDoorPanelProperties),
+        typeof(IIfcWindowLiningProperties)
+    };
+
     public void Start(FileInfo ifcFileInfo)
     {
         using var model = IfcStore.Open(ifcFileInfo.FullName, accessMode: Xbim.IO.XbimDBAccess.Read);
         using var jsonWriter = new BimxJsonCreator(jsonTargetFile);
-        foreach (var item in Array.Empty<IPersistEntity>()
-                     .Concat(model.Instances.OfType<IIfcMaterial>())
-                     .Concat(model.Instances.OfType<IIfcMaterialList>())
-                     .Concat(model.Instances.OfType<IIfcMaterialLayerSet>())
-                     .Concat(model.Instances.OfType<IIfcMaterialLayer>())
-                     .Concat(model.Instances.OfType<IIfcMaterialConstituent>())
-                     .Concat(model.Instances.OfType<IIfcMaterialConstituentSet>())
-                     .Concat(model.Instances.OfType<IIfcMaterialLayerSetUsage>())
-                     .Concat(model.Instances.OfType<IIfcSpaceType>())
-                     .Concat(model.Instances.OfType<IIfcColumnType>())
-                     .Concat(model.Instances.OfType<IIfcWallType>())
-                     .Concat(model.Instances.OfType<IIfcSlabType>())
-                     .Concat(model.Instances.OfType<IIfcCoveringType>())
-                     .Concat(model.Instances.OfType<IIfcStairFlightType>())
-                     .Concat(model.Instances.OfType<IIfcPlateType>())
-                     .Concat(model.Instances.OfType<IIfcMemberType>())
-                     .Concat(model.Instances.OfType<IIfcCurtainWallType>())
-                     .Concat(model.Instances.OfType<IIfcDistributionElementType>())
-                     .Concat(model.Instances.OfType<IIfcBuildingElementProxyType>())
-                     .Concat(model.Instances.OfType<IIfcPipeSegmentType>())
-                     .Concat(model.Instances.OfType<IIfcFurnitureType>())
-                     .Concat(model.Instances.OfType<IIfcRelDefinesByType>())
-                     .Concat(model.Instances.OfType<IIfcPropertySingleValue>())
-                     .Concat(model.Instances.OfType<IIfcPropertySet>())
-                     .Concat(model.Instances.OfType<IIfcRelDefinesByProperties>())
-                     .Concat(model.Instances.OfType<IIfcDoorLiningProperties>())
-                     .Concat(model.Instances.OfType<IIfcDoorPanelProperties>())
-                     .Concat(model.Instances.OfType<IIfcWindowLiningProperties>()))
+
+        foreach (var item in model.Instances)
         {
-            jsonWriter.BTask(item);
+            var itemType = item.GetType();
+            foreach (var targetType in TargetTypes)
+            {
+                if (targetType.IsAssignableFrom(itemType))
+                {
+                    jsonWriter.BTask(item);
+                    break;
+                }
+            }
         }
 
         jsonWriter.CreateJson();

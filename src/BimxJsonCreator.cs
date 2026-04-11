@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -12,7 +13,38 @@ namespace Bingosoft.Net.IfcDetail;
 
 public sealed class BimxJsonCreator : IDisposable
 {
-    private static readonly JsonWriterOptions Jwo = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+    private static readonly JsonWriterOptions Jwo = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        Indented = false
+    };
+
+    private static readonly Dictionary<string, JsonEncodedText> PropertyNameCache = new()
+    {
+        ["Name"] = JsonEncodedText.Encode("Name"),
+        ["Tag"] = JsonEncodedText.Encode("Tag"),
+        ["PredefinedType"] = JsonEncodedText.Encode("PredefinedType"),
+        ["id"] = JsonEncodedText.Encode("id"),
+        ["Id"] = JsonEncodedText.Encode("Id"),
+        ["IfcPropertySet"] = JsonEncodedText.Encode("IfcPropertySet"),
+        ["xlink:href"] = JsonEncodedText.Encode("xlink:href"),
+        ["IfcMaterial"] = JsonEncodedText.Encode("IfcMaterial"),
+        ["DirectionSense"] = JsonEncodedText.Encode("DirectionSense"),
+        ["IfcMaterialLayer"] = JsonEncodedText.Encode("IfcMaterialLayer"),
+        ["LayerThickness"] = JsonEncodedText.Encode("LayerThickness"),
+        ["LayerSetDirection"] = JsonEncodedText.Encode("LayerSetDirection"),
+        ["LayerSetName"] = JsonEncodedText.Encode("LayerSetName"),
+        ["OffsetFromReferenceLine"] = JsonEncodedText.Encode("OffsetFromReferenceLine"),
+        ["IfcMaterialConstituent"] = JsonEncodedText.Encode("IfcMaterialConstituent"),
+        ["properties"] = JsonEncodedText.Encode("properties"),
+        ["ConstructionType"] = JsonEncodedText.Encode("ConstructionType"),
+        ["OperationType"] = JsonEncodedText.Encode("OperationType"),
+        ["ParameterTakesPrecedence"] = JsonEncodedText.Encode("ParameterTakesPrecedence"),
+        ["Sizeable"] = JsonEncodedText.Encode("Sizeable"),
+        ["IfcPropertySingleValue"] = JsonEncodedText.Encode("IfcPropertySingleValue"),
+        ["NominalValue"] = JsonEncodedText.Encode("NominalValue")
+    };
+
     private readonly FileInfo _targetFile;
     private readonly ArrayBufferWriter<byte> _bufferMaterial;
     private readonly Utf8JsonWriter _writerMaterial;
@@ -23,17 +55,19 @@ public sealed class BimxJsonCreator : IDisposable
     private readonly ArrayBufferWriter<byte> _bufferProperty;
     private readonly Utf8JsonWriter _writerProperty;
 
+    private readonly StringBuilder _idBuilder = new(64);
+
     public BimxJsonCreator(FileInfo jsonTargetFile)
     {
         _targetFile = jsonTargetFile;
 
-        _bufferMaterial = new ArrayBufferWriter<byte>(1000);
+        _bufferMaterial = new ArrayBufferWriter<byte>(1024 * 1024);
         _writerMaterial = new Utf8JsonWriter(_bufferMaterial, Jwo);
 
-        _bufferType = new ArrayBufferWriter<byte>(1000);
+        _bufferType = new ArrayBufferWriter<byte>(512 * 1024);
         _writerType = new Utf8JsonWriter(_bufferType, Jwo);
 
-        _bufferProperty = new ArrayBufferWriter<byte>(1000);
+        _bufferProperty = new ArrayBufferWriter<byte>(512 * 1024);
         _writerProperty = new Utf8JsonWriter(_bufferProperty, Jwo);
 
         _writerMaterial.WriteStartObject();
@@ -41,28 +75,57 @@ public sealed class BimxJsonCreator : IDisposable
         _writerProperty.WriteStartObject();
     }
 
+    private static void WriteStringCached(Utf8JsonWriter writer, string propertyName, string value)
+    {
+        if (PropertyNameCache.TryGetValue(propertyName, out var cached))
+        {
+            writer.WriteString(cached, value);
+        }
+        else
+        {
+            writer.WriteString(propertyName, value);
+        }
+    }
+
+    private static void WriteStartArrayCached(Utf8JsonWriter writer, string propertyName)
+    {
+        if (PropertyNameCache.TryGetValue(propertyName, out var cached))
+        {
+            writer.WriteStartArray(cached);
+        }
+        else
+        {
+            writer.WriteStartArray(propertyName);
+        }
+    }
+
     public void BTask(IPersistEntity item)
     {
-        var id = $"{item.ExpressType.Name}_{item.EntityLabel}";
+        _idBuilder.Clear();
+        _idBuilder.Append(item.ExpressType.Name);
+        _idBuilder.Append('_');
+        _idBuilder.Append(item.EntityLabel);
+        var id = _idBuilder.ToString();
 
         if (item is IIfcPipeSegmentType ifcPipeSegmentType)
         {
-            _writerMaterial.WriteStartObject(ifcPipeSegmentType.GlobalId.Value.ToString());
+            var globalIdStr = ifcPipeSegmentType.GlobalId.Value.ToString();
+            _writerMaterial.WriteStartObject(globalIdStr);
             _writerMaterial.WriteStartObject(ifcPipeSegmentType.ExpressType.Name);
 
-            _writerMaterial.WriteStartArray("IfcPropertySet");
+            WriteStartArrayCached(_writerMaterial, "IfcPropertySet");
             foreach (var item1 in ifcPipeSegmentType.HasPropertySets)
             {
                 _writerMaterial.WriteStartObject();
-                _writerMaterial.WriteString("xlink:href", item1.GlobalId.Value.ToString());
+                WriteStringCached(_writerMaterial, "xlink:href", item1.GlobalId.Value.ToString());
                 _writerMaterial.WriteEndObject();
             }
             _writerMaterial.WriteEndArray();
 
-            _writerMaterial.WriteString("Name", ifcPipeSegmentType.Name);
-            _writerMaterial.WriteString("PredefinedType", ifcPipeSegmentType.PredefinedType.ToString());
-            _writerMaterial.WriteString("Tag", ifcPipeSegmentType.Tag);
-            _writerMaterial.WriteString("id", ifcPipeSegmentType.GlobalId.Value.ToString());
+            WriteStringCached(_writerMaterial, "Name", ifcPipeSegmentType.Name);
+            WriteStringCached(_writerMaterial, "PredefinedType", ifcPipeSegmentType.PredefinedType.ToString());
+            WriteStringCached(_writerMaterial, "Tag", ifcPipeSegmentType.Tag);
+            WriteStringCached(_writerMaterial, "id", globalIdStr);
 
             _writerMaterial.WriteEndObject();
             _writerMaterial.WriteEndObject();
@@ -216,12 +279,13 @@ public sealed class BimxJsonCreator : IDisposable
             // TYPES
             case IIfcSpaceType ifcSpaceType:
                 {
-                    _writerType.WriteStartObject(ifcSpaceType.GlobalId.Value.ToString());
+                    var globalIdStr = ifcSpaceType.GlobalId.Value.ToString();
+                    _writerType.WriteStartObject(globalIdStr);
 
                     _writerType.WriteString("Name", ifcSpaceType.Name);
                     _writerType.WriteString("PredefinedType", ifcSpaceType.PredefinedType.ToString());
                     _writerType.WriteString("Tag", ifcSpaceType.Tag);
-                    _writerType.WriteString("id", ifcSpaceType.GlobalId.Value.ToString());
+                    _writerType.WriteString("id", globalIdStr);
 
                     _writerType.WriteEndObject();
 
@@ -269,13 +333,14 @@ public sealed class BimxJsonCreator : IDisposable
                 }
             case IIfcDistributionElementType ifcDistributionElementType:
                 {
-                    _writerType.WriteStartObject(ifcDistributionElementType.GlobalId.Value.ToString());
+                    var globalIdStr = ifcDistributionElementType.GlobalId.Value.ToString();
+                    _writerType.WriteStartObject(globalIdStr);
 
                     _writerType.WritePropertiesArray(ifcDistributionElementType.HasPropertySets);
 
                     _writerType.WriteString("Name", ifcDistributionElementType.Name);
                     _writerType.WriteString("Tag", ifcDistributionElementType.Tag);
-                    _writerType.WriteString("id", ifcDistributionElementType.GlobalId.Value.ToString());
+                    _writerType.WriteString("id", globalIdStr);
 
                     _writerType.WriteEndObject();
                     break;
@@ -287,21 +352,23 @@ public sealed class BimxJsonCreator : IDisposable
                 }
             case IIfcFurnitureType ifcFurnitureType:
                 {
-                    _writerType.WriteStartObject(ifcFurnitureType.GlobalId.Value.ToString());
+                    var globalIdStr = ifcFurnitureType.GlobalId.Value.ToString();
+                    _writerType.WriteStartObject(globalIdStr);
 
                     _writerType.WritePropertiesArray(ifcFurnitureType.HasPropertySets);
 
                     _writerType.WriteString("Name", ifcFurnitureType.Name);
                     _writerType.WriteString("PredefinedType", ifcFurnitureType.PredefinedType.ToString());
                     _writerType.WriteString("Tag", ifcFurnitureType.Tag);
-                    _writerType.WriteString("id", ifcFurnitureType.GlobalId.Value.ToString());
+                    _writerType.WriteString("id", globalIdStr);
 
                     _writerType.WriteEndObject();
                     break;
                 }
             case IIfcWindowStyle ifcWindowStyle:
                 {
-                    _writerType.WriteStartObject(ifcWindowStyle.GlobalId.Value.ToString());
+                    var globalIdStr = ifcWindowStyle.GlobalId.Value.ToString();
+                    _writerType.WriteStartObject(globalIdStr);
 
                     _writerType.WriteString("ConstructionType", ifcWindowStyle.ConstructionType.ToString());
 
@@ -312,7 +379,7 @@ public sealed class BimxJsonCreator : IDisposable
                     _writerType.WriteString("ParameterTakesPrecedence", ifcWindowStyle.ParameterTakesPrecedence.ToString());
                     _writerType.WriteString("Sizeable", ifcWindowStyle.Sizeable.ToString());
                     _writerType.WriteString("Tag", ifcWindowStyle.Tag);
-                    _writerType.WriteString("id", ifcWindowStyle.GlobalId.Value.ToString());
+                    _writerType.WriteString("id", globalIdStr);
 
                     _writerType.WriteEndObject();
                     break;
@@ -320,7 +387,8 @@ public sealed class BimxJsonCreator : IDisposable
             // Properties
             case IIfcPropertySet ifcPropertySet:
                 {
-                    _writerProperty.WriteStartObject(ifcPropertySet.GlobalId.Value.ToString());
+                    var globalIdStr = ifcPropertySet.GlobalId.Value.ToString();
+                    _writerProperty.WriteStartObject(globalIdStr);
 
                     _writerProperty.WriteStartArray("IfcPropertySingleValue");
                     foreach (var item1 in ifcPropertySet.HasProperties)
@@ -333,7 +401,7 @@ public sealed class BimxJsonCreator : IDisposable
                     _writerProperty.WriteEndArray();
 
                     _writerProperty.WriteString("Name", ifcPropertySet.Name);
-                    _writerProperty.WriteString("id", ifcPropertySet.GlobalId.Value.ToString());
+                    _writerProperty.WriteString("id", globalIdStr);
 
                     _writerProperty.WriteEndObject();
 
@@ -341,7 +409,8 @@ public sealed class BimxJsonCreator : IDisposable
                 }
             case IIfcDoorLiningProperties ifcDoorLiningProperties:
                 {
-                    _writerProperty.WriteStartObject(ifcDoorLiningProperties.GlobalId.Value.ToString());
+                    var globalIdStr = ifcDoorLiningProperties.GlobalId.Value.ToString();
+                    _writerProperty.WriteStartObject(globalIdStr);
 
                     _writerProperty.WriteStartArray("IfcPropertySingleValue");
                     foreach (var item1 in ifcDoorLiningProperties.PropertySetDefinitions)
@@ -353,7 +422,7 @@ public sealed class BimxJsonCreator : IDisposable
                     _writerProperty.WriteEndArray();
 
                     _writerProperty.WriteString("Name", ifcDoorLiningProperties.Name);
-                    _writerProperty.WriteString("id", ifcDoorLiningProperties.GlobalId.Value.ToString());
+                    _writerProperty.WriteString("id", globalIdStr);
 
                     _writerProperty.WriteEndObject();
 
@@ -361,7 +430,8 @@ public sealed class BimxJsonCreator : IDisposable
                 }
             case IIfcDoorPanelProperties ifcDoorPanelProperties:
                 {
-                    _writerProperty.WriteStartObject(ifcDoorPanelProperties.GlobalId.Value.ToString());
+                    var globalIdStr = ifcDoorPanelProperties.GlobalId.Value.ToString();
+                    _writerProperty.WriteStartObject(globalIdStr);
 
                     _writerProperty.WriteStartArray("IfcPropertySingleValue");
                     foreach (var item1 in ifcDoorPanelProperties.PropertySetDefinitions)
@@ -373,7 +443,7 @@ public sealed class BimxJsonCreator : IDisposable
                     _writerProperty.WriteEndArray();
 
                     _writerProperty.WriteString("Name", ifcDoorPanelProperties.Name);
-                    _writerProperty.WriteString("id", ifcDoorPanelProperties.GlobalId.Value.ToString());
+                    _writerProperty.WriteString("id", globalIdStr);
 
                     _writerProperty.WriteEndObject();
 
@@ -381,7 +451,8 @@ public sealed class BimxJsonCreator : IDisposable
                 }
             case IIfcWindowLiningProperties ifcWindowLiningProperties:
                 {
-                    _writerProperty.WriteStartObject(ifcWindowLiningProperties.GlobalId.Value.ToString());
+                    var globalIdStr = ifcWindowLiningProperties.GlobalId.Value.ToString();
+                    _writerProperty.WriteStartObject(globalIdStr);
 
                     _writerProperty.WriteStartArray("IfcPropertySingleValue");
                     foreach (var item1 in ifcWindowLiningProperties.PropertySetDefinitions)
@@ -393,7 +464,7 @@ public sealed class BimxJsonCreator : IDisposable
                     _writerProperty.WriteEndArray();
 
                     _writerProperty.WriteString("Name", ifcWindowLiningProperties.Name);
-                    _writerProperty.WriteString("id", ifcWindowLiningProperties.GlobalId.Value.ToString());
+                    _writerProperty.WriteString("id", globalIdStr);
 
                     _writerProperty.WriteEndObject();
 
@@ -403,14 +474,15 @@ public sealed class BimxJsonCreator : IDisposable
 
         static void ConvertTypeToJson(Utf8JsonWriter writer, IIfcBuildingElementType ifcMemberType, string predefinedType)
         {
-            writer.WriteStartObject(ifcMemberType.GlobalId.Value.ToString());
+            var globalIdStr = ifcMemberType.GlobalId.Value.ToString();
+            writer.WriteStartObject(globalIdStr);
 
             writer.WritePropertiesArray(ifcMemberType.HasPropertySets);
 
             writer.WriteString("Name", ifcMemberType.Name);
             writer.WriteString("PredefinedType", predefinedType);
             writer.WriteString("Tag", ifcMemberType.Tag);
-            writer.WriteString("id", ifcMemberType.GlobalId.Value.ToString());
+            writer.WriteString("id", globalIdStr);
 
             writer.WriteEndObject();
         }
@@ -423,26 +495,27 @@ public sealed class BimxJsonCreator : IDisposable
         _writerProperty.WriteEndObject();
 
         _writerMaterial.Flush();
-        var jsonMaterial = Encoding.UTF8.GetString(_bufferMaterial.WrittenSpan);
-
         _writerType.Flush();
-        var jsonType = Encoding.UTF8.GetString(_bufferType.WrittenSpan);
-
         _writerProperty.Flush();
-        var jsonProperties = Encoding.UTF8.GetString(_bufferProperty.WrittenSpan);
 
-        using var stream = File.OpenWrite(_targetFile.FullName);
+        using var stream = new FileStream(
+            _targetFile.FullName,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 81920);
+
         using var writer = new Utf8JsonWriter(stream, Jwo);
         writer.WriteStartObject();
 
         writer.WritePropertyName("materials");
-        writer.WriteRawValue(jsonMaterial);
+        writer.WriteRawValue(_bufferMaterial.WrittenSpan, skipInputValidation: true);
 
         writer.WritePropertyName("types");
-        writer.WriteRawValue(jsonType);
+        writer.WriteRawValue(_bufferType.WrittenSpan, skipInputValidation: true);
 
         writer.WritePropertyName("properties");
-        writer.WriteRawValue(jsonProperties);
+        writer.WriteRawValue(_bufferProperty.WrittenSpan, skipInputValidation: true);
 
         writer.WriteEndObject();
     }
