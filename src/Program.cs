@@ -11,18 +11,20 @@ internal class Program
         if (args.Length < 1)
         {
             Console.WriteLine("Please specify the path to the IFC and the output json.");
-            Console.WriteLine("Usage: ifc_metadata /path_to_file.ifc /path_to_file.json [--profile]");
-            Console.WriteLine("Usage: ifc_metadata /path_to_file.ifc [--profile]");
+            Console.WriteLine("Usage: ifc_metadata /path_to_file.ifc /path_to_file.json [--profile] [--progress]");
+            Console.WriteLine("Usage: ifc_metadata /path_to_file.ifc [--profile] [--progress]");
             Console.WriteLine("       The file will be created in the directory of the source file, with the same name");
             Console.WriteLine();
             Console.WriteLine("Options:");
             Console.WriteLine("  --profile    Enable performance profiling and show detailed report");
+            Console.WriteLine("  --progress   Show processing progress (0-100%)");
 
             Environment.Exit(1);
         }
 
         // Parse arguments
         var enableProfiling = false;
+        var showProgress = false;
         var ifcPath = args[0];
         string jsonPath = null;
 
@@ -31,6 +33,10 @@ internal class Program
             if (args[i] == "--profile")
             {
                 enableProfiling = true;
+            }
+            else if (args[i] == "--progress")
+            {
+                showProgress = true;
             }
             else if (jsonPath == null)
             {
@@ -52,7 +58,7 @@ internal class Program
         try
         {
             MaterialExtractor mt = new MaterialExtractor(jsonTargetFile);
-            mt.Start(ifcSourceFile, enableProfiling);
+            mt.Start(ifcSourceFile, enableProfiling, showProgress);
 
             Environment.Exit(0);
         }

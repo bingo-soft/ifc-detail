@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -47,12 +48,20 @@ internal class MaterialExtractor(FileInfo jsonTargetFile)
     };
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    public void Start(FileInfo ifcFileInfo, bool enableProfiling = false)
+    public void Start(FileInfo ifcFileInfo, bool enableProfiling = false, bool showProgress = false)
     {
         PerformanceProfiler profiler = enableProfiling ? new PerformanceProfiler() : null;
 
         using var model = IfcStore.Open(ifcFileInfo.FullName, accessMode: Xbim.IO.XbimDBAccess.Read);
         using var jsonWriter = new BimxJsonCreator(jsonTargetFile);
+
+        // Count total entities if progress is enabled
+        ProgressReporter progressReporter = null;
+        if (showProgress)
+        {
+            var totalCount = model.Instances.Count();
+            progressReporter = new ProgressReporter(totalCount);
+        }
 
         foreach (var item in model.Instances)
         {
@@ -66,7 +75,12 @@ internal class MaterialExtractor(FileInfo jsonTargetFile)
                     break;
                 }
             }
+
+            // Report progress for every entity, not just processed ones
+            progressReporter?.ReportProgress();
         }
+
+        progressReporter?.Complete();
 
         jsonWriter.CreateJson();
 

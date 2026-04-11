@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.8] - 2026-04-11
+
+### Features
+
+- **Progress indicator**: Added `--progress` CLI flag to show processing progress (0-100%)
+- **Real-time updates**: Dynamic progress bar that updates in place without console spam
+- **Thread-safe**: Safe for concurrent operations
+
+### Bug Fixes
+
+- **InvalidCastException**: Fixed crash when processing properties that are not IIfcPropertySingleValue
+- **Progress accuracy**: Progress now updates for all entities, not just processed ones
+
+### Usage
+
+```bash
+# With progress indicator
+ifc_metadata input.ifc output.json --progress
+
+# With progress and profiling
+ifc_metadata input.ifc output.json --progress --profile
+```
+
 ## [0.0.7] - 2026-04-11
 
 ### Features

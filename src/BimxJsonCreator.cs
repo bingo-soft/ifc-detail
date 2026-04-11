@@ -399,7 +399,10 @@ public sealed class BimxJsonCreator : IDisposable
                     {
                         _writerProperty.WriteStartObject();
                         _writerProperty.WriteString("Name", item1.Name);
-                        _writerProperty.WriteString("NominalValue", ((IIfcPropertySingleValue)item1).NominalValue?.ToString());
+                        if (item1 is IIfcPropertySingleValue singleValue)
+                        {
+                            _writerProperty.WriteString("NominalValue", singleValue.NominalValue?.ToString());
+                        }
                         _writerProperty.WriteEndObject();
                     }
                     _writerProperty.WriteEndArray();
