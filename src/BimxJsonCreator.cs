@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -75,6 +76,7 @@ public sealed class BimxJsonCreator : IDisposable
         _writerProperty.WriteStartObject();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void WriteStringCached(Utf8JsonWriter writer, string propertyName, string value)
     {
         if (PropertyNameCache.TryGetValue(propertyName, out var cached))
@@ -87,6 +89,7 @@ public sealed class BimxJsonCreator : IDisposable
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void WriteStartArrayCached(Utf8JsonWriter writer, string propertyName)
     {
         if (PropertyNameCache.TryGetValue(propertyName, out var cached))
@@ -99,6 +102,7 @@ public sealed class BimxJsonCreator : IDisposable
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void BTask(IPersistEntity item)
     {
         _idBuilder.Clear();
@@ -472,6 +476,7 @@ public sealed class BimxJsonCreator : IDisposable
                 }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static void ConvertTypeToJson(Utf8JsonWriter writer, IIfcBuildingElementType ifcMemberType, string predefinedType)
         {
             var globalIdStr = ifcMemberType.GlobalId.Value.ToString();
@@ -530,6 +535,7 @@ public sealed class BimxJsonCreator : IDisposable
 
 public static class IfcExtensions
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void WritePropertiesArray(this Utf8JsonWriter writer, IItemSet<IIfcPropertySetDefinition> props)
     {
         writer.WriteStartArray("properties");

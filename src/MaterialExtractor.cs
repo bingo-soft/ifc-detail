@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
@@ -45,6 +46,7 @@ internal class MaterialExtractor(FileInfo jsonTargetFile)
         typeof(IIfcWindowLiningProperties)
     };
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Start(FileInfo ifcFileInfo)
     {
         using var model = IfcStore.Open(ifcFileInfo.FullName, accessMode: Xbim.IO.XbimDBAccess.Read);
