@@ -7,7 +7,15 @@ using System.Text.Json;
 
 namespace Bingosoft.Net.IfcDetail;
 
-internal sealed class FastIfcJsonComposer
+internal enum JsonEmissionMode
+{
+    PreserveOrder,
+    Deterministic
+}
+
+internal sealed class FastIfcJsonComposer(
+    JsonEmissionMode emissionMode = JsonEmissionMode.PreserveOrder,
+    bool enforceLastOccurrenceWins = true)
 {
     private static readonly JsonWriterOptions WriterOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
@@ -75,6 +83,8 @@ internal sealed class FastIfcJsonComposer
         ["IFCWINDOWLININGPROPERTIES"] = "IfcWindowLiningProperties"
     };
 
+    private readonly record struct EmissionItem(string TypeName, int EntityIndex, string Key);
+
     public void Write(FileInfo jsonTargetFile, FastIfcDataModel model)
     {
         using var stream = File.Create(jsonTargetFile.FullName);
@@ -100,96 +110,192 @@ internal sealed class FastIfcJsonComposer
         writer.WriteEndObject();
     }
 
-    private static void WriteMaterials(Utf8JsonWriter writer, FastIfcDataModel model)
+    private void WriteMaterials(Utf8JsonWriter writer, FastIfcDataModel model)
     {
+        var items = new List<EmissionItem>();
+
         foreach (var typeName in MaterialOrder)
         {
             var entities = model.GetEntitiesByType(typeName);
             foreach (var entityIndex in entities)
             {
-                switch (typeName)
-                {
-                    case "IFCMATERIAL":
-                        WriteMaterial(writer, model, entityIndex);
-                        break;
-                    case "IFCMATERIALLIST":
-                        WriteMaterialList(writer, model, entityIndex);
-                        break;
-                    case "IFCMATERIALLAYERSET":
-                        WriteMaterialLayerSet(writer, model, entityIndex);
-                        break;
-                    case "IFCMATERIALLAYER":
-                        WriteMaterialLayer(writer, model, entityIndex);
-                        break;
-                    case "IFCMATERIALCONSTITUENT":
-                        WriteMaterialConstituent(writer, model, entityIndex);
-                        break;
-                    case "IFCMATERIALCONSTITUENTSET":
-                        WriteMaterialConstituentSet(writer, model, entityIndex);
-                        break;
-                    case "IFCMATERIALLAYERSETUSAGE":
-                        WriteMaterialLayerSetUsage(writer, model, entityIndex);
-                        break;
-                    case "IFCPIPESEGMENTTYPE":
-                        WritePipeSegmentType(writer, model, entityIndex);
-                        break;
-                }
+                items.Add(new EmissionItem(typeName, entityIndex, GetMaterialItemKey(model, typeName, entityIndex)));
             }
         }
 
         var duplicatePipeSegments = model.GetEntitiesByType("IFCPIPESEGMENTTYPE");
         foreach (var entityIndex in duplicatePipeSegments)
         {
-            WritePipeSegmentType(writer, model, entityIndex);
+            items.Add(new EmissionItem("IFCPIPESEGMENTTYPE", entityIndex, model.ReadGlobalId(entityIndex)));
         }
+
+        EmitSection(writer, model, items, static (targetWriter, dataModel, item) =>
+        {
+            switch (item.TypeName)
+            {
+                case "IFCMATERIAL":
+                    WriteMaterial(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCMATERIALLIST":
+                    WriteMaterialList(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCMATERIALLAYERSET":
+                    WriteMaterialLayerSet(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCMATERIALLAYER":
+                    WriteMaterialLayer(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCMATERIALCONSTITUENT":
+                    WriteMaterialConstituent(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCMATERIALCONSTITUENTSET":
+                    WriteMaterialConstituentSet(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCMATERIALLAYERSETUSAGE":
+                    WriteMaterialLayerSetUsage(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCPIPESEGMENTTYPE":
+                    WritePipeSegmentType(targetWriter, dataModel, item.EntityIndex);
+                    break;
+            }
+        });
     }
 
-    private static void WriteTypes(Utf8JsonWriter writer, FastIfcDataModel model)
+    private void WriteTypes(Utf8JsonWriter writer, FastIfcDataModel model)
     {
+        var items = new List<EmissionItem>();
+
         foreach (var typeName in TypeOrder)
         {
             var entities = model.GetEntitiesByType(typeName);
             foreach (var entityIndex in entities)
             {
-                switch (typeName)
-                {
-                    case "IFCSPACETYPE":
-                        WriteSpaceType(writer, model, entityIndex);
-                        break;
-                    case "IFCDISTRIBUTIONELEMENTTYPE":
-                        WriteDistributionElementType(writer, model, entityIndex);
-                        break;
-                    case "IFCFURNITURETYPE":
-                        WriteFurnitureType(writer, model, entityIndex);
-                        break;
-                    default:
-                        WriteBuildingElementType(writer, model, entityIndex);
-                        break;
-                }
+                items.Add(new EmissionItem(typeName, entityIndex, model.ReadGlobalId(entityIndex)));
             }
         }
+
+        EmitSection(writer, model, items, static (targetWriter, dataModel, item) =>
+        {
+            switch (item.TypeName)
+            {
+                case "IFCSPACETYPE":
+                    WriteSpaceType(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCDISTRIBUTIONELEMENTTYPE":
+                    WriteDistributionElementType(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCFURNITURETYPE":
+                    WriteFurnitureType(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                default:
+                    WriteBuildingElementType(targetWriter, dataModel, item.EntityIndex);
+                    break;
+            }
+        });
     }
 
-    private static void WriteProperties(Utf8JsonWriter writer, FastIfcDataModel model)
+    private void WriteProperties(Utf8JsonWriter writer, FastIfcDataModel model)
     {
+        var items = new List<EmissionItem>();
+
         foreach (var typeName in PropertyOrder)
         {
             var entities = model.GetEntitiesByType(typeName);
             foreach (var entityIndex in entities)
             {
-                switch (typeName)
-                {
-                    case "IFCPROPERTYSET":
-                        WritePropertySet(writer, model, entityIndex);
-                        break;
-                    case "IFCDOORLININGPROPERTIES":
-                    case "IFCDOORPANELPROPERTIES":
-                    case "IFCWINDOWLININGPROPERTIES":
-                        WriteSimplePropertyDefinition(writer, model, entityIndex);
-                        break;
-                }
+                items.Add(new EmissionItem(typeName, entityIndex, model.ReadGlobalId(entityIndex)));
             }
         }
+
+        EmitSection(writer, model, items, static (targetWriter, dataModel, item) =>
+        {
+            switch (item.TypeName)
+            {
+                case "IFCPROPERTYSET":
+                    WritePropertySet(targetWriter, dataModel, item.EntityIndex);
+                    break;
+                case "IFCDOORLININGPROPERTIES":
+                case "IFCDOORPANELPROPERTIES":
+                case "IFCWINDOWLININGPROPERTIES":
+                    WriteSimplePropertyDefinition(targetWriter, dataModel, item.EntityIndex);
+                    break;
+            }
+        });
+    }
+
+    private void EmitSection(Utf8JsonWriter writer, FastIfcDataModel model, IReadOnlyList<EmissionItem> items, Action<Utf8JsonWriter, FastIfcDataModel, EmissionItem> emitItem)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        if (!enforceLastOccurrenceWins)
+        {
+            if (emissionMode == JsonEmissionMode.Deterministic)
+            {
+                var orderedItems = new List<EmissionItem>(items);
+                orderedItems.Sort(static (left, right) => StringComparer.Ordinal.Compare(left.Key, right.Key));
+                foreach (var ordered in orderedItems)
+                {
+                    emitItem(writer, model, ordered);
+                }
+
+                return;
+            }
+
+            foreach (var item in items)
+            {
+                emitItem(writer, model, item);
+            }
+
+            return;
+        }
+
+        var lastIndexByKey = new Dictionary<string, int>(items.Count, StringComparer.Ordinal);
+        for (var i = 0; i < items.Count; i++)
+        {
+            lastIndexByKey[items[i].Key] = i;
+        }
+
+        if (emissionMode == JsonEmissionMode.Deterministic)
+        {
+            var retainedItems = new List<EmissionItem>(lastIndexByKey.Count);
+            for (var i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                if (lastIndexByKey[item.Key] == i)
+                {
+                    retainedItems.Add(item);
+                }
+            }
+
+            retainedItems.Sort(static (left, right) => StringComparer.Ordinal.Compare(left.Key, right.Key));
+            foreach (var retained in retainedItems)
+            {
+                emitItem(writer, model, retained);
+            }
+
+            return;
+        }
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            if (lastIndexByKey[item.Key] != i)
+            {
+                continue;
+            }
+
+            emitItem(writer, model, item);
+        }
+    }
+
+    private static string GetMaterialItemKey(FastIfcDataModel model, string typeName, int entityIndex)
+    {
+        return typeName == "IFCPIPESEGMENTTYPE"
+            ? model.ReadGlobalId(entityIndex)
+            : EntityObjectId(model, entityIndex);
     }
 
     private static string EntityObjectId(FastIfcDataModel model, int entityIndex)
@@ -568,11 +674,6 @@ internal sealed class FastIfcJsonComposer
 
     private static string ToExpressTypeName(string upperTypeName)
     {
-        if (ExpressTypeNames.TryGetValue(upperTypeName, out var expressTypeName))
-        {
-            return expressTypeName;
-        }
-
-        return upperTypeName;
+        return ExpressTypeNames.GetValueOrDefault(upperTypeName, upperTypeName);
     }
 }

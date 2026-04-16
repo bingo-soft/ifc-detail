@@ -2,14 +2,18 @@ using System.IO;
 
 namespace Bingosoft.Net.IfcDetail;
 
-internal sealed class FastMaterialExtractor(FileInfo jsonTargetFile)
+internal sealed class FastMaterialExtractor(
+    FileInfo jsonTargetFile,
+    JsonEmissionMode emissionMode = JsonEmissionMode.PreserveOrder,
+    bool enforceLastOccurrenceWins = false)
 {
     private static readonly FastIfcStepParser Parser = new();
-    private static readonly FastIfcJsonComposer Composer = new();
+
+    private readonly FastIfcJsonComposer _composer = new(emissionMode, enforceLastOccurrenceWins);
 
     public void Start(FileInfo ifcFileInfo)
     {
         var model = Parser.Parse(ifcFileInfo);
-        Composer.Write(jsonTargetFile, model);
+        _composer.Write(jsonTargetFile, model);
     }
 }

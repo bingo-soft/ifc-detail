@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.0.8] - 2026-04-16 13:52
+
+### Added
+- Добавлены тесты `DirectJsonEmitterTests` для двух режимов эмиссии: preserve-order и deterministic.
+- Добавлена конфигурация fast extractor для выбора режима эмиссии и включения/отключения строгого dedup `last-occurrence-wins`.
+
+### Changed
+- Fast JSON emitter переведён на прямую эмиссию по индексам через промежуточные `EmissionItem` без сборки JSON-документа в память.
+- Добавлены режимы вывода: `JsonEmissionMode.PreserveOrder` и `JsonEmissionMode.Deterministic`.
+- Для deterministic режима реализована стабильная сортировка ключей по `StringComparer.Ordinal`.
+
+### Fixed
+- Устранена запись дублей на уровне секций `materials/types/properties` при включённом строгом dedup, соблюдён контракт `last-occurrence-wins`.
+- Сохранён legacy-путь fast extractor без dedup для совместимости с текущим baseline parity потоком.
+
 ## [0.0.7] - 2026-04-16 12:45
 
 ### Summary
