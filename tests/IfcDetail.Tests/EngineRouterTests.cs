@@ -104,7 +104,7 @@ public sealed class EngineRouterTests
 
         public EffectiveEngine Engine { get; } = engine;
 
-        public void Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile)
+        public void Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile, OutputWriteOptions outputWriteOptions)
         {
             Calls++;
             if (!shouldThrow)

@@ -5,7 +5,8 @@ namespace Bingosoft.Net.IfcDetail;
 internal sealed class FastMaterialExtractor(
     FileInfo jsonTargetFile,
     JsonEmissionMode emissionMode = JsonEmissionMode.PreserveOrder,
-    bool enforceLastOccurrenceWins = false)
+    bool enforceLastOccurrenceWins = false,
+    OutputWriteOptions? outputWriteOptions = null)
 {
     private static readonly FastIfcStepParser Parser = new();
 
@@ -14,6 +15,6 @@ internal sealed class FastMaterialExtractor(
     public void Start(FileInfo ifcFileInfo)
     {
         var model = Parser.Parse(ifcFileInfo);
-        _composer.Write(jsonTargetFile, model);
+        _composer.Write(jsonTargetFile, model, outputWriteOptions ?? OutputWriteOptions.Default);
     }
 }

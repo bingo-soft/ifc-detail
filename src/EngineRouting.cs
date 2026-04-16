@@ -39,16 +39,16 @@ internal interface IProcessingEngine
 {
     EffectiveEngine Engine { get; }
 
-    void Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile);
+    void Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile, OutputWriteOptions outputWriteOptions);
 }
 
 internal sealed class BaselineProcessingEngine : IProcessingEngine
 {
     public EffectiveEngine Engine => EffectiveEngine.Baseline;
 
-    public void Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile)
+    public void Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile, OutputWriteOptions outputWriteOptions)
     {
-        new MaterialExtractor(jsonTargetFile).Start(ifcSourceFile);
+        new MaterialExtractor(jsonTargetFile, outputWriteOptions).Start(ifcSourceFile);
     }
 }
 
@@ -58,10 +58,10 @@ internal sealed class FastProcessingEngine : IProcessingEngine
 
     public EffectiveEngine Engine => EffectiveEngine.Fast;
 
-    public void Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile)
+    public void Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile, OutputWriteOptions outputWriteOptions)
     {
         ValidateInputForFastEngine(ifcSourceFile);
-        new FastMaterialExtractor(jsonTargetFile).Start(ifcSourceFile);
+        new FastMaterialExtractor(jsonTargetFile, outputWriteOptions: outputWriteOptions).Start(ifcSourceFile);
     }
 
     private static void ValidateInputForFastEngine(FileInfo ifcSourceFile)
@@ -127,18 +127,19 @@ internal sealed class FastProcessingEngine : IProcessingEngine
 
 internal sealed class EngineRouter(IProcessingEngine baselineEngine, IProcessingEngine fastEngine)
 {
-    public ProcessingResult Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile, RequestedEngine requestedEngine)
+    public ProcessingResult Process(FileInfo ifcSourceFile, FileInfo jsonTargetFile, RequestedEngine requestedEngine, OutputWriteOptions? outputWriteOptions = null)
     {
         var attempts = 0;
         var success = 0;
         var fallbacks = 0;
         var fallbackReason = FallbackReason.None;
+        var effectiveOutputWriteOptions = outputWriteOptions ?? OutputWriteOptions.Default;
 
         switch (requestedEngine)
         {
             case RequestedEngine.Baseline:
                 attempts++;
-                baselineEngine.Process(ifcSourceFile, jsonTargetFile);
+                baselineEngine.Process(ifcSourceFile, jsonTargetFile, effectiveOutputWriteOptions);
                 success++;
                 return BuildResult(requestedEngine, EffectiveEngine.Baseline, fallbackReason, attempts, success, fallbacks);
 
@@ -147,7 +148,7 @@ internal sealed class EngineRouter(IProcessingEngine baselineEngine, IProcessing
                 attempts++;
                 try
                 {
-                    fastEngine.Process(ifcSourceFile, jsonTargetFile);
+                    fastEngine.Process(ifcSourceFile, jsonTargetFile, effectiveOutputWriteOptions);
                     success++;
                     return BuildResult(requestedEngine, EffectiveEngine.Fast, fallbackReason, attempts, success, fallbacks);
                 }
@@ -157,7 +158,7 @@ internal sealed class EngineRouter(IProcessingEngine baselineEngine, IProcessing
                     fallbacks++;
 
                     attempts++;
-                    baselineEngine.Process(ifcSourceFile, jsonTargetFile);
+                    baselineEngine.Process(ifcSourceFile, jsonTargetFile, effectiveOutputWriteOptions);
                     success++;
 
                     return BuildResult(requestedEngine, EffectiveEngine.Baseline, fallbackReason, attempts, success, fallbacks);

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.9] - 2026-04-16 15:47
+
+### Added
+- Добавлены CLI-параметры `--verbosity none|timing|detailed`, `--progress completed|remaining|none`, `--output-buffer-kb`, `--write-through[=true|false]`.
+- Добавлены тесты `CliOptionsTests` для новых режимов CLI и валидации комбинаций флагов.
+- Добавлен тип `OutputWriteOptions` и прокидывание параметров записи в baseline и fast pipeline.
+
+### Changed
+- Обновлён `--help`: описаны новые параметры, правила валидации и сохранение positional-вызова `<source.ifc> [target.json]`.
+- Реализован вывод `verbosity=timing` с форматированием длительности в `ms/s/m:ss/h:mm:ss`.
+- Реализован `verbosity=detailed`: вывод schema, requested/effective parser, fallback reason/count, counters, elapsed и peak memory.
+- Запись JSON переведена на `FileStreamOptions` с настройкой буфера и режима write-through во всех движках.
+
+### Fixed
+- Для `--verbosity none` отключён runtime-вывод, включая прогресс и сообщения ошибок выполнения.
+- Добавлена валидация несовместимой комбинации `--verbosity none` c `--progress completed|remaining`.
+
 ## [0.0.8] - 2026-04-16 13:52
 
 ### Added

@@ -10,14 +10,15 @@ using Xbim.Ifc4.Interfaces;
 
 namespace Bingosoft.Net.IfcDetail;
 
-internal class MaterialExtractor(FileInfo jsonTargetFile)
+internal class MaterialExtractor(FileInfo jsonTargetFile, OutputWriteOptions? outputWriteOptions = null)
 {
     public static readonly JsonWriterOptions Jwo = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     public void Start(FileInfo ifcFileInfo)
     {
         using var model = IfcStore.Open(ifcFileInfo.FullName, accessMode: Xbim.IO.XbimDBAccess.Read);
-        using var jsonWriter = new BimxJsonCreator(jsonTargetFile);
+        using var jsonWriter = new BimxJsonCreator(jsonTargetFile, outputWriteOptions);
+
         foreach (var item in Array.Empty<IPersistEntity>()
                      .Concat(model.Instances.OfType<IIfcMaterial>())
                      .Concat(model.Instances.OfType<IIfcMaterialList>())

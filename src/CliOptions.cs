@@ -4,58 +4,177 @@ using System.IO;
 
 namespace Bingosoft.Net.IfcDetail;
 
-internal sealed record CliOptions(FileInfo IfcSourceFile, FileInfo JsonTargetFile, RequestedEngine RequestedEngine)
+internal enum CliVerbosity
+{
+    None,
+    Timing,
+    Detailed
+}
+
+internal enum CliProgress
+{
+    Completed,
+    Remaining,
+    None
+}
+
+internal sealed record CliOptions(
+    FileInfo IfcSourceFile,
+    FileInfo JsonTargetFile,
+    RequestedEngine RequestedEngine,
+    CliVerbosity Verbosity,
+    CliProgress Progress,
+    OutputWriteOptions OutputWriteOptions,
+    bool IsHelpRequested)
 {
     public static bool TryParse(string[] args, out CliOptions options, out string error)
     {
         options = null;
         error = string.Empty;
 
-        if (args.Length < 1)
-        {
-            error = "Please specify the path to the IFC and the output json.";
-            return false;
-        }
-
         var positional = new List<string>(2);
         var requestedEngine = RequestedEngine.Default;
+        var verbosity = CliVerbosity.Detailed;
+        var progress = CliProgress.None;
+        var outputBufferBytes = OutputWriteOptions.Default.BufferSizeBytes;
+        var writeThrough = OutputWriteOptions.Default.WriteThrough;
+        var helpRequested = false;
 
         for (var i = 0; i < args.Length; i++)
         {
             var argument = args[i];
+            if (IsHelpOption(argument))
+            {
+                helpRequested = true;
+                continue;
+            }
+
             if (!argument.StartsWith("--", StringComparison.Ordinal))
             {
                 positional.Add(argument);
                 continue;
             }
 
-            if (argument.StartsWith("--engine", StringComparison.Ordinal))
+            if (IsNamedOption(argument, "--engine"))
             {
-                var value = ExtractOptionValue(argument, args, ref i);
-                if (string.IsNullOrWhiteSpace(value))
+                if (!TryReadRequiredOptionValue(argument, args, ref i, out var value, out error))
                 {
-                    error = "Engine value is not specified. Use --engine baseline|fast.";
                     return false;
                 }
 
-                if (value.Equals("baseline", StringComparison.OrdinalIgnoreCase))
+                if (!TryParseRequestedEngine(value, out requestedEngine))
                 {
-                    requestedEngine = RequestedEngine.Baseline;
+                    error = $"Unsupported engine '{value}'. Use baseline|fast.";
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (IsNamedOption(argument, "--verbosity"))
+            {
+                if (!TryReadRequiredOptionValue(argument, args, ref i, out var value, out error))
+                {
+                    return false;
+                }
+
+                if (!TryParseVerbosity(value, out verbosity))
+                {
+                    error = $"Unsupported verbosity '{value}'. Use none|timing|detailed.";
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (IsNamedOption(argument, "--progress"))
+            {
+                if (!TryReadRequiredOptionValue(argument, args, ref i, out var value, out error))
+                {
+                    return false;
+                }
+
+                if (!TryParseProgress(value, out progress))
+                {
+                    error = $"Unsupported progress mode '{value}'. Use completed|remaining|none.";
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (IsNamedOption(argument, "--output-buffer-kb"))
+            {
+                if (!TryReadRequiredOptionValue(argument, args, ref i, out var value, out error))
+                {
+                    return false;
+                }
+
+                if (!int.TryParse(value, out var parsedKilobytes) || parsedKilobytes <= 0)
+                {
+                    error = $"Unsupported output buffer value '{value}'. Use positive integer in KB.";
+                    return false;
+                }
+
+                try
+                {
+                    outputBufferBytes = checked(parsedKilobytes * 1024);
+                }
+                catch (OverflowException)
+                {
+                    error = $"Output buffer value '{value}' is too large.";
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (IsNamedOption(argument, "--write-through"))
+            {
+                if (TryExtractInlineOptionValue(argument, out var inlineValue))
+                {
+                    if (!TryParseBoolean(inlineValue, out writeThrough))
+                    {
+                        error = $"Unsupported write-through value '{inlineValue}'. Use true|false.";
+                        return false;
+                    }
+
                     continue;
                 }
 
-                if (value.Equals("fast", StringComparison.OrdinalIgnoreCase))
+                if (TryReadOptionalBooleanValue(args, i, out var optionalBooleanValue))
                 {
-                    requestedEngine = RequestedEngine.Fast;
+                    writeThrough = optionalBooleanValue;
+                    i++;
                     continue;
                 }
 
-                error = $"Unsupported engine '{value}'. Use baseline|fast.";
-                return false;
+                writeThrough = true;
+                continue;
             }
 
             error = $"Unknown option '{argument}'.";
             return false;
+        }
+
+        if (verbosity == CliVerbosity.None && progress != CliProgress.None)
+        {
+            error = "--progress completed|remaining is not allowed with --verbosity none.";
+            return false;
+        }
+
+        if (helpRequested)
+        {
+            options = new CliOptions(
+                new FileInfo("."),
+                new FileInfo("."),
+                requestedEngine,
+                verbosity,
+                progress,
+                new OutputWriteOptions(outputBufferBytes, writeThrough),
+                true);
+
+            return true;
         }
 
         if (positional.Count == 0)
@@ -66,7 +185,7 @@ internal sealed record CliOptions(FileInfo IfcSourceFile, FileInfo JsonTargetFil
 
         if (positional.Count > 2)
         {
-            error = "Too many positional arguments. Usage: ifc_metadata <source.ifc> [target.json] [--engine baseline|fast]";
+            error = "Too many positional arguments. Usage: ifc_metadata <source.ifc> [target.json] [options]";
             return false;
         }
 
@@ -75,25 +194,142 @@ internal sealed record CliOptions(FileInfo IfcSourceFile, FileInfo JsonTargetFil
             ? new FileInfo(Path.ChangeExtension(ifcSourceFile.FullName, ".json"))
             : new FileInfo(positional[1]);
 
-        options = new CliOptions(ifcSourceFile, jsonTargetFile, requestedEngine);
+        options = new CliOptions(
+            ifcSourceFile,
+            jsonTargetFile,
+            requestedEngine,
+            verbosity,
+            progress,
+            new OutputWriteOptions(outputBufferBytes, writeThrough),
+            false);
+
         return true;
     }
 
-    private static string ExtractOptionValue(string argument, string[] args, ref int index)
+    private static bool IsHelpOption(string argument)
     {
-        var separatorIndex = argument.IndexOf('=');
-        if (separatorIndex >= 0)
+        return argument.Equals("--help", StringComparison.OrdinalIgnoreCase) ||
+               argument.Equals("-h", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsNamedOption(string argument, string optionName)
+    {
+        return argument.Equals(optionName, StringComparison.Ordinal) ||
+               argument.StartsWith(optionName + "=", StringComparison.Ordinal);
+    }
+
+    private static bool TryReadRequiredOptionValue(string argument, string[] args, ref int index, out string value, out string error)
+    {
+        error = string.Empty;
+
+        if (TryExtractInlineOptionValue(argument, out value))
         {
-            return argument.Substring(separatorIndex + 1);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                error = $"Value is not specified for option '{argument}'.";
+                return false;
+            }
+
+            return true;
         }
 
         var nextIndex = index + 1;
-        if (nextIndex >= args.Length)
+        if (nextIndex >= args.Length || args[nextIndex].StartsWith("--", StringComparison.Ordinal))
         {
-            return string.Empty;
+            value = string.Empty;
+            error = $"Value is not specified for option '{argument}'.";
+            return false;
         }
 
         index = nextIndex;
-        return args[nextIndex];
+        value = args[nextIndex];
+
+        return true;
+    }
+
+    private static bool TryExtractInlineOptionValue(string argument, out string value)
+    {
+        var separatorIndex = argument.IndexOf('=');
+        if (separatorIndex < 0)
+        {
+            value = string.Empty;
+            return false;
+        }
+
+        value = argument.Substring(separatorIndex + 1);
+        return true;
+    }
+
+    private static bool TryParseRequestedEngine(string value, out RequestedEngine requestedEngine)
+    {
+        requestedEngine = value switch
+        {
+            var v when v.Equals("baseline", StringComparison.OrdinalIgnoreCase) => RequestedEngine.Baseline,
+            var v when v.Equals("fast", StringComparison.OrdinalIgnoreCase) => RequestedEngine.Fast,
+            _ => RequestedEngine.Default
+        };
+
+        return requestedEngine != RequestedEngine.Default;
+    }
+
+    private static bool TryParseVerbosity(string value, out CliVerbosity verbosity)
+    {
+        verbosity = value switch
+        {
+            var v when v.Equals("none", StringComparison.OrdinalIgnoreCase) => CliVerbosity.None,
+            var v when v.Equals("timing", StringComparison.OrdinalIgnoreCase) => CliVerbosity.Timing,
+            var v when v.Equals("detailed", StringComparison.OrdinalIgnoreCase) => CliVerbosity.Detailed,
+            _ => CliVerbosity.None
+        };
+
+        return value.Equals("none", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("timing", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("detailed", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseProgress(string value, out CliProgress progress)
+    {
+        progress = value switch
+        {
+            var v when v.Equals("completed", StringComparison.OrdinalIgnoreCase) => CliProgress.Completed,
+            var v when v.Equals("remaining", StringComparison.OrdinalIgnoreCase) => CliProgress.Remaining,
+            var v when v.Equals("none", StringComparison.OrdinalIgnoreCase) => CliProgress.None,
+            _ => CliProgress.None
+        };
+
+        return value.Equals("completed", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("remaining", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("none", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryReadOptionalBooleanValue(string[] args, int index, out bool value)
+    {
+        value = false;
+
+        var nextIndex = index + 1;
+        if (nextIndex >= args.Length || args[nextIndex].StartsWith("--", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return TryParseBoolean(args[nextIndex], out value);
+    }
+
+    private static bool TryParseBoolean(string value, out bool parsed)
+    {
+        if (value.Equals("true", StringComparison.OrdinalIgnoreCase))
+        {
+            parsed = true;
+            return true;
+        }
+
+        if (value.Equals("false", StringComparison.OrdinalIgnoreCase))
+        {
+            parsed = false;
+            return true;
+        }
+
+        parsed = false;
+        return false;
     }
 }

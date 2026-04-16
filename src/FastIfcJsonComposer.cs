@@ -85,9 +85,10 @@ internal sealed class FastIfcJsonComposer(
 
     private readonly record struct EmissionItem(string TypeName, int EntityIndex, string Key);
 
-    public void Write(FileInfo jsonTargetFile, FastIfcDataModel model)
+    public void Write(FileInfo jsonTargetFile, FastIfcDataModel model, OutputWriteOptions? outputWriteOptions = null)
     {
-        using var stream = File.Create(jsonTargetFile.FullName);
+        var effectiveOutputWriteOptions = outputWriteOptions ?? OutputWriteOptions.Default;
+        using var stream = OpenWriteStream(jsonTargetFile.FullName, effectiveOutputWriteOptions);
         using var writer = new Utf8JsonWriter(stream, WriterOptions);
 
         writer.WriteStartObject();
@@ -675,5 +676,17 @@ internal sealed class FastIfcJsonComposer(
     private static string ToExpressTypeName(string upperTypeName)
     {
         return ExpressTypeNames.GetValueOrDefault(upperTypeName, upperTypeName);
+    }
+
+    private static FileStream OpenWriteStream(string filePath, OutputWriteOptions outputWriteOptions)
+    {
+        return new FileStream(filePath, new FileStreamOptions
+        {
+            Mode = FileMode.Create,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            BufferSize = outputWriteOptions.BufferSizeBytes,
+            Options = outputWriteOptions.WriteThrough ? FileOptions.WriteThrough : FileOptions.None
+        });
     }
 }
