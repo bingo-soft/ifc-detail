@@ -6,7 +6,8 @@ internal sealed class FastMaterialExtractor(
     FileInfo jsonTargetFile,
     JsonEmissionMode emissionMode = JsonEmissionMode.PreserveOrder,
     bool enforceLastOccurrenceWins = false,
-    OutputWriteOptions? outputWriteOptions = null)
+    OutputWriteOptions? outputWriteOptions = null,
+    MemoryScalingOptions? memoryScalingOptions = null)
 {
     private static readonly FastIfcStepParser Parser = new();
 
@@ -14,7 +15,7 @@ internal sealed class FastMaterialExtractor(
 
     public void Start(FileInfo ifcFileInfo)
     {
-        var model = Parser.Parse(ifcFileInfo);
+        var model = Parser.Parse(ifcFileInfo, memoryScalingOptions ?? MemoryScalingOptions.Default);
         _composer.Write(jsonTargetFile, model, outputWriteOptions ?? OutputWriteOptions.Default);
     }
 }

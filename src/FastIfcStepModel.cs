@@ -3,7 +3,8 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-
+using System.IO.MemoryMappedFiles;
+using System.Text;
 
 namespace Bingosoft.Net.IfcDetail;
 
@@ -294,7 +295,16 @@ internal sealed class FastIfcDataModel
 
 internal sealed class FastIfcStepParser
 {
-    public FastIfcDataModel Parse(FileInfo ifcSourceFile)
+    public FastIfcDataModel Parse(FileInfo ifcSourceFile, MemoryScalingOptions memoryScalingOptions)
+    {
+        return memoryScalingOptions.Mode switch
+        {
+            IntermediateStoreMode.MemoryMapped => ParseWithMemoryMappedIntermediateStore(ifcSourceFile, memoryScalingOptions),
+            _ => ParseInMemory(ifcSourceFile)
+        };
+    }
+
+    private static FastIfcDataModel ParseInMemory(FileInfo ifcSourceFile)
     {
         var content = File.ReadAllText(ifcSourceFile.FullName);
         var dataStart = content.IndexOf("DATA;", StringComparison.OrdinalIgnoreCase);
@@ -320,7 +330,292 @@ internal sealed class FastIfcStepParser
         return new FastIfcDataModel(builder.Build());
     }
 
-        private sealed class Builder
+    private static FastIfcDataModel ParseWithMemoryMappedIntermediateStore(FileInfo ifcSourceFile, MemoryScalingOptions options)
+    {
+        Directory.CreateDirectory(options.SpillDirectory.FullName);
+
+        using var mmf = MemoryMappedFile.CreateFromFile(ifcSourceFile.FullName, FileMode.Open, null, 0, MemoryMappedFileAccess.Read);
+        using var stream = mmf.CreateViewStream(0, 0, MemoryMappedFileAccess.Read);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: options.SegmentSizeBytes);
+
+        var builder = new Builder();
+        var segmentBuffer = new char[Math.Max(1024, options.SegmentSizeBytes / 2)];
+        var collector = new EntityCollector(options, ifcSourceFile.Name);
+        var isInsideData = false;
+
+        while (true)
+        {
+            var read = reader.Read(segmentBuffer, 0, segmentBuffer.Length);
+            if (read <= 0)
+            {
+                break;
+            }
+
+                        for (var i = 0; i < read; i++)
+            {
+                var ch = segmentBuffer[i];
+                if (!isInsideData)
+                {
+                    if (collector.TryEnterDataSection(ch))
+                    {
+                        isInsideData = true;
+                    }
+
+                    continue;
+                }
+
+                if (collector.TryAppendDataChar(ch, out var completedEntityText, out var isEndSectionReached))
+                {
+                    if (!string.IsNullOrWhiteSpace(completedEntityText))
+                    {
+                        var entityScanner = new Scanner(completedEntityText, 0, completedEntityText.Length);
+                        if (entityScanner.MoveToNextEntity())
+                        {
+                            builder.AddEntity(entityScanner.ParseEntity());
+                        }
+                    }
+                }
+
+                if (isEndSectionReached)
+                {
+                    return new FastIfcDataModel(builder.Build());
+                }
+            }
+        }
+
+        throw new FastParseHeaderException("IFC DATA ENDSEC is not found.");
+    }
+
+        
+    
+    
+    private sealed class EntityCollector
+    {
+        private const string DataSectionMarker = "DATA;";
+        private const string EndSectionMarker = "ENDSEC;";
+
+        private readonly int _spillThresholdChars;
+        private readonly DirectoryInfo _spillDirectory;
+        private readonly string _sourceName;
+        private readonly StringBuilder _entityBuffer = new(256);
+                private SpillAccumulator? _spillAccumulator;
+        private bool _inString;
+        private bool _hasSeenEntityStart;
+        private bool _hasPendingEntityStart;
+        private bool _hasPendingStringQuote;
+        private int _nestingDepth;
+        private int _dataMarkerMatchLength;
+        private int _endSectionMatchLength;
+
+        public EntityCollector(MemoryScalingOptions options, string sourceName)
+        {
+            _spillThresholdChars = Math.Max(1024, options.SegmentSizeBytes / 2);
+            _spillDirectory = options.SpillDirectory;
+            _sourceName = sourceName;
+        }
+
+        public bool TryEnterDataSection(char ch)
+        {
+            _dataMarkerMatchLength = AdvanceCaseInsensitiveMatch(_dataMarkerMatchLength, ch, DataSectionMarker);
+            if (_dataMarkerMatchLength != DataSectionMarker.Length)
+            {
+                return false;
+            }
+
+            _dataMarkerMatchLength = 0;
+            return true;
+        }
+
+        public bool TryAppendDataChar(char ch, out string completedEntityText, out bool isEndSectionReached)
+        {
+            completedEntityText = string.Empty;
+            isEndSectionReached = false;
+
+            if (_hasSeenEntityStart)
+            {
+                AppendEntityChar(ch);
+                UpdateEntityState(ch);
+
+                if (ch == ';' && !_inString && _nestingDepth == 0)
+                {
+                    completedEntityText = FinalizeEntity();
+                    return true;
+                }
+
+                return false;
+            }
+
+            _endSectionMatchLength = AdvanceCaseInsensitiveMatch(_endSectionMatchLength, ch, EndSectionMarker);
+            if (_endSectionMatchLength == EndSectionMarker.Length)
+            {
+                isEndSectionReached = true;
+                _endSectionMatchLength = 0;
+                return false;
+            }
+
+            if (!_hasPendingEntityStart)
+            {
+                if (ch == '#')
+                {
+                    _hasPendingEntityStart = true;
+                }
+
+                return false;
+            }
+
+            if (!char.IsAsciiDigit(ch))
+            {
+                _hasPendingEntityStart = ch == '#';
+                return false;
+            }
+
+            _hasPendingEntityStart = false;
+            BeginEntity('#', ch);
+            return false;
+        }
+
+                private void BeginEntity(char marker, char firstIdChar)
+        {
+            _hasSeenEntityStart = true;
+            _inString = false;
+            _hasPendingStringQuote = false;
+            _nestingDepth = 0;
+            _entityBuffer.Clear();
+            _spillAccumulator?.Dispose();
+            _spillAccumulator = null;
+
+            AppendEntityChar(marker);
+            AppendEntityChar(firstIdChar);
+        }
+
+                private void UpdateEntityState(char ch)
+        {
+            if (_inString)
+            {
+                if (_hasPendingStringQuote)
+                {
+                    if (ch == '\'')
+                    {
+                        _hasPendingStringQuote = false;
+                        return;
+                    }
+
+                    _inString = false;
+                    _hasPendingStringQuote = false;
+                }
+                else
+                {
+                    if (ch == '\'')
+                    {
+                        _hasPendingStringQuote = true;
+                    }
+
+                    return;
+                }
+            }
+
+            switch (ch)
+            {
+                case '\'':
+                    _inString = true;
+                    _hasPendingStringQuote = false;
+                    break;
+                case '(':
+                    _nestingDepth++;
+                    break;
+                case ')':
+                    if (_nestingDepth > 0)
+                    {
+                        _nestingDepth--;
+                    }
+                    break;
+            }
+        }
+
+                private void AppendEntityChar(char ch)
+        {
+            if (_spillAccumulator is not null)
+            {
+                _spillAccumulator.Append(ch);
+                return;
+            }
+
+            _entityBuffer.Append(ch);
+            if (_entityBuffer.Length < _spillThresholdChars)
+            {
+                return;
+            }
+
+            _spillAccumulator = new SpillAccumulator(_spillDirectory, _sourceName, _entityBuffer.ToString());
+            _entityBuffer.Clear();
+        }
+
+        private string FinalizeEntity()
+        {
+            var result = _spillAccumulator is null
+                ? _entityBuffer.ToString()
+                : _spillAccumulator.ReadAllAndReset();
+
+                        _spillAccumulator?.Dispose();
+            _spillAccumulator = null;
+            _entityBuffer.Clear();
+            _hasSeenEntityStart = false;
+            _inString = false;
+            _hasPendingStringQuote = false;
+            _nestingDepth = 0;
+
+            return result;
+        }
+
+        private static int AdvanceCaseInsensitiveMatch(int currentMatchLength, char ch, string marker)
+        {
+            var normalized = char.ToUpperInvariant(ch);
+            var expected = marker[currentMatchLength];
+            if (normalized == expected)
+            {
+                return currentMatchLength + 1;
+            }
+
+            return normalized == marker[0] ? 1 : 0;
+        }
+    }
+
+    private sealed class SpillAccumulator : IDisposable
+    {
+        private readonly string _spillFilePath;
+        private readonly StreamWriter _writer;
+
+        public SpillAccumulator(DirectoryInfo spillDirectory, string sourceName, string initialContent)
+        {
+            _spillFilePath = Path.Combine(spillDirectory.FullName, $"{Path.GetFileNameWithoutExtension(sourceName)}-{Guid.NewGuid():N}.spill");
+            _writer = new StreamWriter(new FileStream(_spillFilePath, FileMode.Create, FileAccess.Write, FileShare.None));
+            _writer.Write(initialContent);
+        }
+
+        public void Append(char ch)
+        {
+            _writer.Write(ch);
+        }
+
+                public string ReadAllAndReset()
+        {
+            _writer.Dispose();
+            var text = File.ReadAllText(_spillFilePath);
+            File.Delete(_spillFilePath);
+            return text;
+        }
+
+        public void Dispose()
+        {
+            _writer.Dispose();
+            if (File.Exists(_spillFilePath))
+            {
+                File.Delete(_spillFilePath);
+            }
+        }
+    }
+
+    private sealed class Builder
     {
         private readonly List<int> _entityIds = new();
         private readonly List<string> _entityTypes = new();
@@ -336,9 +631,9 @@ internal sealed class FastIfcStepParser
 
         public void AddEntity(ParsedEntity entity)
         {
-            var entityIndex = _entityIds.Count;
+                        var entityIndex = _entityIds.Count;
             _entityIds.Add(entity.Id);
-                        _entityTypes.Add(NormalizeTypeName(entity.Type));
+            _entityTypes.Add(NormalizeTypeName(entity.Type));
 
             _argOffsets.Add(_argValueIndices.Count);
             _argCounts.Add(entity.Arguments.Count);

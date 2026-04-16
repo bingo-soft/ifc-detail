@@ -48,6 +48,25 @@ public sealed class FastParserPerformanceTests
     }
 
     [Fact]
+    public void Fast_parser_mmf_mode_output_must_match_baseline_on_typical_dataset()
+    {
+        var ifc = CreateIfcDataset(repeatCount: 200);
+        var ifcFile = CreateTempFile("mmf", ".ifc", ifc);
+
+        var baselineOutput = CreateTempFileInfo("baseline-mmf", ".json");
+        var fastOutput = CreateTempFileInfo("fast-mmf", ".json");
+        var spillDirectory = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "ifc-detail-fast-tests", "spill", Guid.NewGuid().ToString("N")));
+
+        new MaterialExtractor(baselineOutput).Start(ifcFile);
+        new FastMaterialExtractor(
+            fastOutput,
+            outputWriteOptions: OutputWriteOptions.Default,
+            memoryScalingOptions: new MemoryScalingOptions(IntermediateStoreMode.MemoryMapped, 256 * 1024, spillDirectory)).Start(ifcFile);
+
+        Assert.Equal(NormalizeJson(File.ReadAllText(baselineOutput.FullName)), NormalizeJson(File.ReadAllText(fastOutput.FullName)));
+    }
+
+    [Fact]
     public void Fast_parser_must_reduce_allocations_and_time_on_typical_dataset()
     {
         var ifc = CreateIfcDataset(repeatCount: 500);

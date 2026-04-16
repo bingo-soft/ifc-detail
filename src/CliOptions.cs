@@ -25,6 +25,7 @@ internal sealed record CliOptions(
     CliVerbosity Verbosity,
     CliProgress Progress,
     OutputWriteOptions OutputWriteOptions,
+    MemoryScalingOptions MemoryScalingOptions,
     bool IsHelpRequested)
 {
     public static bool TryParse(string[] args, out CliOptions options, out string error)
@@ -38,6 +39,10 @@ internal sealed record CliOptions(
         var progress = CliProgress.None;
         var outputBufferBytes = OutputWriteOptions.Default.BufferSizeBytes;
         var writeThrough = OutputWriteOptions.Default.WriteThrough;
+        var intermediateStoreMode = MemoryScalingOptions.Default.Mode;
+        var intermediateSegmentBytes = MemoryScalingOptions.Default.SegmentSizeBytes;
+        var spillDirectory = MemoryScalingOptions.Default.SpillDirectory;
+        var isIntermediateStoreSpecified = false;
         var helpRequested = false;
 
         for (var i = 0; i < args.Length; i++)
@@ -153,6 +158,66 @@ internal sealed record CliOptions(
                 continue;
             }
 
+            if (IsNamedOption(argument, "--intermediate-store"))
+            {
+                if (!TryReadRequiredOptionValue(argument, args, ref i, out var value, out error))
+                {
+                    return false;
+                }
+
+                if (!TryParseIntermediateStoreMode(value, out intermediateStoreMode))
+                {
+                    error = $"Unsupported intermediate store mode '{value}'. Use none|mmf.";
+                    return false;
+                }
+
+                isIntermediateStoreSpecified = true;
+                continue;
+            }
+
+            if (IsNamedOption(argument, "--segment-size-kb"))
+            {
+                if (!TryReadRequiredOptionValue(argument, args, ref i, out var value, out error))
+                {
+                    return false;
+                }
+
+                if (!int.TryParse(value, out var parsedKilobytes) || parsedKilobytes <= 0)
+                {
+                    error = $"Unsupported segment size value '{value}'. Use positive integer in KB.";
+                    return false;
+                }
+
+                try
+                {
+                    intermediateSegmentBytes = checked(parsedKilobytes * 1024);
+                }
+                catch (OverflowException)
+                {
+                    error = $"Segment size value '{value}' is too large.";
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (IsNamedOption(argument, "--spill-dir"))
+            {
+                if (!TryReadRequiredOptionValue(argument, args, ref i, out var value, out error))
+                {
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    error = "Spill directory path is empty.";
+                    return false;
+                }
+
+                spillDirectory = new DirectoryInfo(value);
+                continue;
+            }
+
             error = $"Unknown option '{argument}'.";
             return false;
         }
@@ -160,6 +225,19 @@ internal sealed record CliOptions(
         if (verbosity == CliVerbosity.None && progress != CliProgress.None)
         {
             error = "--progress completed|remaining is not allowed with --verbosity none.";
+            return false;
+        }
+
+        if (!isIntermediateStoreSpecified)
+        {
+            intermediateStoreMode = GetDefaultIntermediateStoreMode(requestedEngine);
+        }
+
+        if (intermediateStoreMode == IntermediateStoreMode.Disabled &&
+            (!string.Equals(spillDirectory.FullName, MemoryScalingOptions.Default.SpillDirectory.FullName, StringComparison.OrdinalIgnoreCase) ||
+             intermediateSegmentBytes != MemoryScalingOptions.Default.SegmentSizeBytes))
+        {
+            error = "--segment-size-kb and --spill-dir require --intermediate-store mmf.";
             return false;
         }
 
@@ -172,6 +250,7 @@ internal sealed record CliOptions(
                 verbosity,
                 progress,
                 new OutputWriteOptions(outputBufferBytes, writeThrough),
+                new MemoryScalingOptions(intermediateStoreMode, intermediateSegmentBytes, spillDirectory),
                 true);
 
             return true;
@@ -201,6 +280,7 @@ internal sealed record CliOptions(
             verbosity,
             progress,
             new OutputWriteOptions(outputBufferBytes, writeThrough),
+            new MemoryScalingOptions(intermediateStoreMode, intermediateSegmentBytes, spillDirectory),
             false);
 
         return true;
@@ -300,6 +380,30 @@ internal sealed record CliOptions(
         return value.Equals("completed", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("remaining", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("none", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseIntermediateStoreMode(string value, out IntermediateStoreMode mode)
+    {
+        mode = value switch
+        {
+            var v when v.Equals("none", StringComparison.OrdinalIgnoreCase) => IntermediateStoreMode.Disabled,
+            var v when v.Equals("mmf", StringComparison.OrdinalIgnoreCase) => IntermediateStoreMode.MemoryMapped,
+            _ => IntermediateStoreMode.Disabled
+        };
+
+        return value.Equals("none", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("mmf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IntermediateStoreMode GetDefaultIntermediateStoreMode(RequestedEngine requestedEngine)
+    {
+        return requestedEngine switch
+        {
+            RequestedEngine.Baseline => IntermediateStoreMode.Disabled,
+            RequestedEngine.Fast => IntermediateStoreMode.MemoryMapped,
+            RequestedEngine.Default => IntermediateStoreMode.MemoryMapped,
+            _ => IntermediateStoreMode.Disabled
+        };
     }
 
     private static bool TryReadOptionalBooleanValue(string[] args, int index, out bool value)

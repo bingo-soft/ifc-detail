@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.0.11] - 2026-04-16
+
+### Added
+- Добавлены параметры memory scaling fast-парсера: `MemoryScalingOptions`, режимы `none|mmf`, сегментация чтения (`--segment-size-kb`) и директория spill (`--spill-dir`).
+- Добавлен MMF parity-тест fast-пути на синтетическом типовом IFC датасете.
+
+### Changed
+- Для fast/default policy режим `--intermediate-store` по умолчанию переключен на `mmf`; для baseline по умолчанию сохранен `none`.
+- Обновлен CLI help: добавлены параметры промежуточного хранилища и уточнены правила валидации.
+- Роутинг движков и fast extractor обновлены для прокидывания `MemoryScalingOptions` через весь pipeline.
+
+### Fixed
+- Исправлен MMF spill-path: перед чтением spill-файла writer теперь закрывается, устранен `IOException` и fallback на baseline на крупных IFC.
+- Ускорена потоковая обработка DATA/ENDSEC в MMF-режиме: убраны лишние строковые аллокации в посимвольном цикле и стабилизирована детекция STEP entity в stream-парсере.
+
 ## [0.0.10] - 2026-04-16 16:01
 
 ### Added

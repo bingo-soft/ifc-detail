@@ -17,6 +17,7 @@ public sealed class CliOptionsTests
         Assert.Equal(RequestedEngine.Default, options.RequestedEngine);
         Assert.Equal(CliVerbosity.Detailed, options.Verbosity);
         Assert.Equal(CliProgress.None, options.Progress);
+        Assert.Equal(IntermediateStoreMode.MemoryMapped, options.MemoryScalingOptions.Mode);
         Assert.False(options.IsHelpRequested);
         Assert.Equal("sample.json", options.JsonTargetFile.Name);
     }
@@ -37,6 +38,7 @@ public sealed class CliOptionsTests
         Assert.Equal(CliProgress.Remaining, options.Progress);
         Assert.Equal(64 * 1024, options.OutputWriteOptions.BufferSizeBytes);
         Assert.True(options.OutputWriteOptions.WriteThrough);
+        Assert.Equal(IntermediateStoreMode.Disabled, options.MemoryScalingOptions.Mode);
     }
 
     [Fact]
@@ -89,5 +91,42 @@ public sealed class CliOptionsTests
 
         Assert.False(ok);
         Assert.Contains("positive integer", error);
+    }
+
+    [Fact]
+    public void Mmf_mode_must_parse_segment_and_spill_options()
+    {
+        var ok = CliOptions.TryParse(
+            ["source.ifc", "--intermediate-store", "mmf", "--segment-size-kb", "128", "--spill-dir", "spill-dir"],
+            out var options,
+            out var error);
+
+        Assert.True(ok);
+        Assert.True(string.IsNullOrEmpty(error));
+        Assert.NotNull(options);
+        Assert.Equal(IntermediateStoreMode.MemoryMapped, options.MemoryScalingOptions.Mode);
+        Assert.Equal(128 * 1024, options.MemoryScalingOptions.SegmentSizeBytes);
+        Assert.EndsWith("spill-dir", options.MemoryScalingOptions.SpillDirectory.FullName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Segment_size_option_must_be_allowed_without_explicit_mode_for_default_fast_policy()
+    {
+        var ok = CliOptions.TryParse(["source.ifc", "--segment-size-kb", "128"], out var options, out var error);
+
+        Assert.True(ok);
+        Assert.True(string.IsNullOrEmpty(error));
+        Assert.NotNull(options);
+        Assert.Equal(IntermediateStoreMode.MemoryMapped, options.MemoryScalingOptions.Mode);
+        Assert.Equal(128 * 1024, options.MemoryScalingOptions.SegmentSizeBytes);
+    }
+
+    [Fact]
+    public void Segment_and_spill_options_must_require_mmf_mode_for_baseline_engine()
+    {
+        var ok = CliOptions.TryParse(["source.ifc", "--engine", "baseline", "--segment-size-kb", "128"], out _, out var error);
+
+        Assert.False(ok);
+        Assert.Contains("require --intermediate-store mmf", error);
     }
 }

@@ -46,7 +46,12 @@ internal class Program
 
         try
         {
-            var result = Router.Process(options.IfcSourceFile, options.JsonTargetFile, options.RequestedEngine, options.OutputWriteOptions);
+            var result = Router.Process(
+                options.IfcSourceFile,
+                options.JsonTargetFile,
+                options.RequestedEngine,
+                options.OutputWriteOptions,
+                options.MemoryScalingOptions);
 
             completedSteps = 2;
             PrintProgress(options.Progress, completedSteps, "written output file");
@@ -56,25 +61,30 @@ internal class Program
             PrintExecutionDetails(result.ExecutionDetails, options.Verbosity, stopwatch.Elapsed, peakWorkingSetBytes, schema);
             return 0;
         }
-        catch (Exception ex)
+                catch (Exception ex)
         {
             WriteLineUnlessSilent(options.Verbosity, ex.ToString());
             return 1;
         }
     }
 
+
     private static void PrintUsage()
     {
         Console.WriteLine("Usage: ifc_metadata <source.ifc> [target.json] [options]");
         Console.WriteLine("Options:");
-        Console.WriteLine("  --engine baseline|fast           Force parser engine; default policy is fast with fallback to baseline.");
-        Console.WriteLine("  --verbosity none|timing|detailed none: no runtime output; timing: elapsed only; detailed: full report.");
+        Console.WriteLine("  --engine baseline|fast            Force parser engine; default policy is fast with fallback to baseline.");
+        Console.WriteLine("  --verbosity none|timing|detailed  none: no runtime output; timing: elapsed only; detailed: full report.");
         Console.WriteLine("  --progress completed|remaining|none");
         Console.WriteLine("  --output-buffer-kb <positive-int> Output FileStream buffer size in KB.");
-        Console.WriteLine("  --write-through[=true|false]     Enables FileOptions.WriteThrough.");
+                Console.WriteLine("  --write-through[=true|false]      Enables FileOptions.WriteThrough.");
+        Console.WriteLine("  --intermediate-store none|mmf     Memory scaling mode; default is mmf for fast/default engine.");
+        Console.WriteLine("  --segment-size-kb <positive-int>  MMF read segment size in KB.");
+        Console.WriteLine("  --spill-dir <path>                Intermediate spill directory for oversized entities.");
         Console.WriteLine("  --help, -h");
         Console.WriteLine("Validation:");
         Console.WriteLine("  --verbosity none requires --progress none.");
+        Console.WriteLine("  --segment-size-kb and --spill-dir require --intermediate-store mmf.");
         Console.WriteLine("Positional arguments remain supported: <source.ifc> [target.json].");
     }
 
