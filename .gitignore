@@ -2,3 +2,9 @@
 src/bin/
 src/obj/
 src/Properties/
+ifc/
+ifc-metadata/
+.agent/
+AGENTS.md
+tests/IfcDetail.Tests/bin/
+tests/IfcDetail.Tests/obj/

@@ -14,18 +14,23 @@ public sealed class BimxJsonCreator : IDisposable
 {
     private static readonly JsonWriterOptions Jwo = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
     private readonly FileInfo _targetFile;
+    private readonly OutputWriteOptions _outputWriteOptions;
     private readonly ArrayBufferWriter<byte> _bufferMaterial;
     private readonly Utf8JsonWriter _writerMaterial;
-
     private readonly ArrayBufferWriter<byte> _bufferType;
     private readonly Utf8JsonWriter _writerType;
-
     private readonly ArrayBufferWriter<byte> _bufferProperty;
     private readonly Utf8JsonWriter _writerProperty;
 
     public BimxJsonCreator(FileInfo jsonTargetFile)
+        : this(jsonTargetFile, null)
+    {
+    }
+
+    internal BimxJsonCreator(FileInfo jsonTargetFile, OutputWriteOptions? outputWriteOptions)
     {
         _targetFile = jsonTargetFile;
+        _outputWriteOptions = outputWriteOptions ?? OutputWriteOptions.Default;
 
         _bufferMaterial = new ArrayBufferWriter<byte>(1000);
         _writerMaterial = new Utf8JsonWriter(_bufferMaterial, Jwo);
@@ -40,6 +45,7 @@ public sealed class BimxJsonCreator : IDisposable
         _writerType.WriteStartObject();
         _writerProperty.WriteStartObject();
     }
+
 
     public void BTask(IPersistEntity item)
     {
@@ -431,8 +437,9 @@ public sealed class BimxJsonCreator : IDisposable
         _writerProperty.Flush();
         var jsonProperties = Encoding.UTF8.GetString(_bufferProperty.WrittenSpan);
 
-        using var stream = File.OpenWrite(_targetFile.FullName);
+        using var stream = OpenWriteStream();
         using var writer = new Utf8JsonWriter(stream, Jwo);
+
         writer.WriteStartObject();
 
         writer.WritePropertyName("materials");
@@ -453,17 +460,33 @@ public sealed class BimxJsonCreator : IDisposable
         _writerType?.Dispose();
         _writerProperty?.Dispose();
     }
+
+    private FileStream OpenWriteStream()
+    {
+
+        return new FileStream(_targetFile.FullName, new FileStreamOptions
+        {
+            Mode = FileMode.Create,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            BufferSize = _outputWriteOptions.BufferSizeBytes,
+            Options = _outputWriteOptions.WriteThrough ? FileOptions.WriteThrough : FileOptions.None
+        });
+    }
 }
 
 public static class IfcExtensions
 {
-    public static void WritePropertiesArray(this Utf8JsonWriter writer, IItemSet<IIfcPropertySetDefinition> props)
+    extension(Utf8JsonWriter writer)
     {
-        writer.WriteStartArray("properties");
-        foreach (var item in props)
+        public void WritePropertiesArray(IItemSet<IIfcPropertySetDefinition> props)
         {
-            writer.WriteStringValue(item.GlobalId.ToString());
+            writer.WriteStartArray("properties");
+            foreach (var item in props)
+            {
+                writer.WriteStringValue(item.GlobalId.ToString());
+            }
+            writer.WriteEndArray();
         }
-        writer.WriteEndArray();
     }
 }

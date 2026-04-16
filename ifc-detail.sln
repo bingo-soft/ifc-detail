@@ -5,16 +5,22 @@ VisualStudioVersion = 17.10.35122.118
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ifc-detail", "src\ifc-detail.csproj", "{58711254-D6A1-43EC-9A63-34782667B67E}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IfcDetail.Tests", "tests\IfcDetail.Tests\IfcDetail.Tests.csproj", "{03D73BD6-E398-4FA7-884D-0BEA3E9CA1DE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{58711254-D6A1-43EC-9A63-34782667B67E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{58711254-D6A1-43EC-9A63-34782667B67E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{58711254-D6A1-43EC-9A63-34782667B67E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{58711254-D6A1-43EC-9A63-34782667B67E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{03D73BD6-E398-4FA7-884D-0BEA3E9CA1DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03D73BD6-E398-4FA7-884D-0BEA3E9CA1DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03D73BD6-E398-4FA7-884D-0BEA3E9CA1DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03D73BD6-E398-4FA7-884D-0BEA3E9CA1DE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,0 +1,1 @@
+{"materials":{"m1":{"IfcMaterial":{"Name":"Steel","Id":"m1"}}},"types":{"t1":{"properties":[],"Name":"Wall","PredefinedType":"STANDARD","Tag":"A","id":"t1"}},"properties":{"p1":{"IfcPropertySingleValue":[],"Name":"Pset","id":"p1"}}}
