@@ -1,7 +1,9 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+
 
 namespace Bingosoft.Net.IfcDetail;
 
@@ -149,6 +151,7 @@ internal sealed class FastIfcDataModel
 {
     private readonly Dictionary<string, List<int>> _entitiesByType;
     private readonly Dictionary<int, List<int>> _materialLayerToLayerSets;
+    private readonly string[] _globalIdCache;
 
     public FastIfcDataModel(StepEntityTable table)
     {
@@ -156,6 +159,8 @@ internal sealed class FastIfcDataModel
         Adjacency = new EntityAdjacencyIndex(table);
 
         _entitiesByType = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        _globalIdCache = new string[table.Count];
+
         for (var i = 0; i < table.Count; i++)
         {
             var entityType = table.GetEntityType(i);
@@ -170,6 +175,7 @@ internal sealed class FastIfcDataModel
 
         _materialLayerToLayerSets = BuildLayerToLayerSetMap();
     }
+
 
     public StepEntityTable Table { get; }
 
@@ -206,10 +212,19 @@ internal sealed class FastIfcDataModel
         return string.IsNullOrEmpty(text) ? defaultValue : text;
     }
 
-    public string ReadGlobalId(int entityIndex)
+        public string ReadGlobalId(int entityIndex)
     {
-        return ReadStringOrDefault(entityIndex, 0, $"#{Table.GetEntityId(entityIndex)}");
+        var cached = _globalIdCache[entityIndex];
+        if (!string.IsNullOrEmpty(cached))
+        {
+            return cached;
+        }
+
+        var globalId = ReadStringOrDefault(entityIndex, 0, $"#{Table.GetEntityId(entityIndex)}");
+        _globalIdCache[entityIndex] = globalId;
+        return globalId;
     }
+
 
     public void ForEachReferenceInArgument(int entityIndex, int argumentIndex, Action<int> action)
     {
@@ -305,7 +320,7 @@ internal sealed class FastIfcStepParser
         return new FastIfcDataModel(builder.Build());
     }
 
-    private sealed class Builder
+        private sealed class Builder
     {
         private readonly List<int> _entityIds = new();
         private readonly List<string> _entityTypes = new();
@@ -315,12 +330,16 @@ internal sealed class FastIfcStepParser
         private readonly List<StepValue> _values = new();
         private readonly List<int> _listItems = new();
         private readonly Dictionary<int, int> _entityIndexById = new();
+        private readonly Dictionary<string, string> _typeNameCache = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _stringNormalizationCache = new(StringComparer.Ordinal);
+
 
         public void AddEntity(ParsedEntity entity)
         {
             var entityIndex = _entityIds.Count;
             _entityIds.Add(entity.Id);
-            _entityTypes.Add(entity.Type);
+                        _entityTypes.Add(NormalizeTypeName(entity.Type));
+
             _argOffsets.Add(_argValueIndices.Count);
             _argCounts.Add(entity.Arguments.Count);
             _entityIndexById[entity.Id] = entityIndex;
@@ -355,21 +374,24 @@ internal sealed class FastIfcStepParser
                 case StepValueKind.Omitted:
                     _values.Add(StepValue.Omitted());
                     return _values.Count - 1;
-                case StepValueKind.String:
-                    _values.Add(StepValue.String(value.Text));
+                                case StepValueKind.String:
+                    _values.Add(StepValue.String(NormalizeString(value.Text)));
                     return _values.Count - 1;
+
                 case StepValueKind.Number:
                     _values.Add(StepValue.FromNumber(value.Number));
                     return _values.Count - 1;
-                case StepValueKind.Enum:
-                    _values.Add(StepValue.Enum(value.Text));
+                                case StepValueKind.Enum:
+                    _values.Add(StepValue.Enum(NormalizeString(value.Text)));
                     return _values.Count - 1;
+
                 case StepValueKind.Reference:
                     _values.Add(StepValue.Reference(value.ReferenceId));
                     return _values.Count - 1;
-                case StepValueKind.Raw:
-                    _values.Add(StepValue.Raw(value.Text));
+                                case StepValueKind.Raw:
+                    _values.Add(StepValue.Raw(NormalizeString(value.Text)));
                     return _values.Count - 1;
+
                 case StepValueKind.List:
                     var listStart = _listItems.Count;
                     foreach (var listItem in value.ListItems)
@@ -379,12 +401,57 @@ internal sealed class FastIfcStepParser
 
                     _values.Add(StepValue.List(listStart, value.ListItems.Count));
                     return _values.Count - 1;
-                default:
+                                default:
                     _values.Add(StepValue.Omitted());
                     return _values.Count - 1;
             }
         }
+
+        private string NormalizeTypeName(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            if (_typeNameCache.TryGetValue(value, out var cached))
+            {
+                return cached;
+            }
+
+            var normalized = value.ToUpperInvariant();
+            if (_typeNameCache.TryGetValue(normalized, out cached))
+            {
+                _typeNameCache[value] = cached;
+                return cached;
+            }
+
+            _typeNameCache[value] = normalized;
+            if (!string.Equals(value, normalized, StringComparison.Ordinal))
+            {
+                _typeNameCache[normalized] = normalized;
+            }
+
+            return normalized;
+        }
+
+        private string NormalizeString(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
+
+            if (_stringNormalizationCache.TryGetValue(value, out var cached))
+            {
+                return cached;
+            }
+
+            _stringNormalizationCache[value] = value;
+            return value;
+        }
     }
+
 
     private readonly record struct ParsedEntity(int Id, string Type, List<ParsedValue> Arguments);
 
@@ -574,20 +641,29 @@ internal sealed class FastIfcStepParser
             return values;
         }
 
-        private int ParseInt()
-        {
-            SkipWhitespaces();
-            var start = _position;
-            while (_position < end && char.IsAsciiDigit(content[_position]))
-            {
-                _position++;
-            }
+                private int ParseInt()
+                {
+                    SkipWhitespaces();
 
-            var value = content[start.._position];
-            return int.Parse(value, CultureInfo.InvariantCulture);
-        }
+                    var start = _position;
+                    var value = 0;
+                    while (_position < end && char.IsAsciiDigit(content[_position]))
+                    {
+                        value = (value * 10) + (content[_position] - '0');
+                        _position++;
+                    }
 
-        private double ParseNumber()
+                    if (_position == start)
+                    {
+                        throw new FastParseHeaderException($"Invalid IFC integer near position {_position}.");
+                    }
+
+                    return value;
+                }
+
+
+
+                private double ParseNumber()
         {
             SkipWhitespaces();
             var start = _position;
@@ -603,13 +679,20 @@ internal sealed class FastIfcStepParser
                 break;
             }
 
-            var text = content[start.._position];
-            return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            var length = _position - start;
+            if (length <= 0)
+            {
+                return 0;
+            }
+
+            var span = content.AsSpan(start, length);
+            return double.TryParse(span, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
                 ? value
                 : 0;
         }
 
-        private string ParseIdentifier()
+
+                private string ParseIdentifier()
         {
             SkipWhitespaces();
             var start = _position;
@@ -625,40 +708,56 @@ internal sealed class FastIfcStepParser
                 break;
             }
 
-            return content[start.._position].ToUpperInvariant();
+            var length = _position - start;
+            return length <= 0 ? string.Empty : new string(content.AsSpan(start, length));
         }
 
-        private string ParseStringLiteral()
+
+                private string ParseStringLiteral()
         {
             Expect('\'');
-            var result = new System.Text.StringBuilder();
 
-            while (_position < end)
+            var buffer = ArrayPool<char>.Shared.Rent(128);
+            var length = 0;
+
+            try
             {
-                var ch = content[_position++];
-                if (ch == '\'')
+                while (_position < end)
                 {
-                    if (_position < end && content[_position] == '\'')
+                    var ch = content[_position++];
+                    if (ch == '\'')
                     {
-                        result.Append('\'');
-                        _position++;
-                        continue;
+                        if (_position < end && content[_position] == '\'')
+                        {
+                                                        EnsureBufferCapacity(ref buffer, length + 1, length);
+                            buffer[length++] = '\'';
+
+                            _position++;
+                            continue;
+                        }
+
+                        break;
                     }
 
-                    break;
+                                        EnsureBufferCapacity(ref buffer, length + 1, length);
+                    buffer[length++] = ch;
+
                 }
 
-                result.Append(ch);
+                return DecodeIfcUnicodeEscapes(buffer.AsSpan(0, length));
             }
-
-            return DecodeIfcUnicodeEscapes(result.ToString());
+            finally
+            {
+                ArrayPool<char>.Shared.Return(buffer);
+            }
         }
 
-        private static string DecodeIfcUnicodeEscapes(string value)
+
+                private static string DecodeIfcUnicodeEscapes(ReadOnlySpan<char> value)
         {
             if (value.IndexOf("\\X", StringComparison.OrdinalIgnoreCase) < 0)
             {
-                return value;
+                return new string(value);
             }
 
             var decoded = new System.Text.StringBuilder(value.Length);
@@ -676,7 +775,7 @@ internal sealed class FastIfcStepParser
             return decoded.ToString();
         }
 
-        private static bool TryDecodeUnicodeBlock(string value, ref int i, System.Text.StringBuilder output)
+        private static bool TryDecodeUnicodeBlock(ReadOnlySpan<char> value, ref int i, System.Text.StringBuilder output)
         {
             if (i + 3 >= value.Length || value[i] != '\\')
             {
@@ -708,10 +807,10 @@ internal sealed class FastIfcStepParser
                 return false;
             }
 
-            var payload = value[payloadStart..payloadEnd];
+            var payload = value.Slice(payloadStart, payloadEnd - payloadStart);
             if (!TryDecodeHexPayload(payload, width, output))
             {
-                output.Append(value, i, payloadEnd + 4 - i);
+                output.Append(value.Slice(i, payloadEnd + 4 - i));
                 i = payloadEnd + 4;
                 return true;
             }
@@ -720,7 +819,7 @@ internal sealed class FastIfcStepParser
             return true;
         }
 
-        private static int FindUnicodeBlockEnd(string value, int start)
+        private static int FindUnicodeBlockEnd(ReadOnlySpan<char> value, int start)
         {
             for (var j = start; j + 3 < value.Length; j++)
             {
@@ -739,7 +838,7 @@ internal sealed class FastIfcStepParser
             return -1;
         }
 
-        private static bool TryDecodeHexPayload(string payload, int width, System.Text.StringBuilder output)
+        private static bool TryDecodeHexPayload(ReadOnlySpan<char> payload, int width, System.Text.StringBuilder output)
         {
             if (payload.Length == 0 || payload.Length % width != 0)
             {
@@ -748,17 +847,67 @@ internal sealed class FastIfcStepParser
 
             for (var index = 0; index < payload.Length; index += width)
             {
-                var chunk = payload.Substring(index, width);
-                if (!int.TryParse(chunk, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var codePoint))
+                var chunk = payload.Slice(index, width);
+                                if (!TryParseHex(chunk, out var codePoint))
                 {
                     return false;
                 }
 
-                output.Append(char.ConvertFromUtf32(codePoint));
+                if (!TryAppendCodePoint(output, codePoint))
+                {
+                    return false;
+                }
+
             }
 
             return true;
         }
+
+        private static bool TryParseHex(ReadOnlySpan<char> chunk, out int value)
+        {
+            value = 0;
+            for (var i = 0; i < chunk.Length; i++)
+            {
+                var ch = chunk[i];
+                var digit = ch switch
+                {
+                    >= '0' and <= '9' => ch - '0',
+                    >= 'A' and <= 'F' => ch - 'A' + 10,
+                    >= 'a' and <= 'f' => ch - 'a' + 10,
+                    _ => -1
+                };
+
+                if (digit < 0)
+                {
+                    return false;
+                }
+
+                value = (value << 4) + digit;
+            }
+
+            return true;
+        }
+
+                private static bool TryAppendCodePoint(System.Text.StringBuilder output, int codePoint)
+        {
+            if (codePoint < 0 || codePoint > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF))
+            {
+                return false;
+            }
+
+            if (codePoint <= 0xFFFF)
+            {
+                output.Append((char)codePoint);
+                return true;
+            }
+
+            codePoint -= 0x10000;
+            output.Append((char)((codePoint >> 10) + 0xD800));
+            output.Append((char)((codePoint & 0x3FF) + 0xDC00));
+            return true;
+        }
+
+
 
         private string ParseEnumLiteral()
         {
@@ -774,7 +923,7 @@ internal sealed class FastIfcStepParser
             return value;
         }
 
-        private string ParseRawToken()
+                private string ParseRawToken()
         {
             var start = _position;
             while (_position < end)
@@ -788,13 +937,30 @@ internal sealed class FastIfcStepParser
                 _position++;
             }
 
-            return content[start.._position].Trim();
+            var span = content.AsSpan(start, _position - start).Trim();
+            return span.IsEmpty ? string.Empty : new string(span);
         }
+
+
+                private static void EnsureBufferCapacity(ref char[] buffer, int requiredLength, int currentLength)
+                {
+                    if (requiredLength <= buffer.Length)
+                    {
+                        return;
+                    }
+
+                    var expanded = ArrayPool<char>.Shared.Rent(buffer.Length * 2);
+                    buffer.AsSpan(0, currentLength).CopyTo(expanded);
+                    ArrayPool<char>.Shared.Return(buffer);
+                    buffer = expanded;
+                }
+
 
         private bool Peek(char ch)
         {
             return _position < end && content[_position] == ch;
         }
+
 
         private void Expect(char ch)
         {

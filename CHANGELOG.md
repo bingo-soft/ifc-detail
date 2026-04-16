@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.10] - 2026-04-16 16:01
+
+### Added
+- Добавлено кэширование нормализации строк в fast STEP builder (`_typeNameCache`, `_stringNormalizationCache`) для повторно встречающихся значений.
+- Добавлено кэширование `GlobalId` в `FastIfcDataModel` для повторных обращений в JSON эмиттере.
+- Добавлено использование `ArrayPool<char>` в парсинге STEP-строковых литералов для временных буферов.
+
+### Changed
+- Горячий путь baseline extractor очищен от LINQ `Concat`-цепочки: перечисление типов переведено на последовательные `foreach` через `EmitEntities`.
+- Числовой и токен-парсинг в `FastIfcStepParser.Scanner` переведён на `Span/ReadOnlySpan` (`ParseNumber`, `ParseIdentifier`, `ParseRawToken`) с уменьшением промежуточных строк.
+- Декодирование IFC Unicode escape-последовательностей переведено на `ReadOnlySpan<char>` с посимвольным hex parse без `Substring`/`char.ConvertFromUtf32`.
+
+### Fixed
+- `ParseInt` теперь валидирует отсутствие цифр и выбрасывает `FastParseHeaderException` вместо неявного возврата некорректного значения.
+- Добавлена валидация диапазона Unicode code point при декодировании escape-блоков.
+
 ## [0.0.9] - 2026-04-16 15:47
 
 ### Added
