@@ -1,42 +1,51 @@
 ﻿using System;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace Bingosoft.Net.IfcDetail;
 
 internal class Program
 {
-    static async Task Main(string[] args)
+    private static readonly EngineRouter Router = new(new BaselineProcessingEngine(), new FastProcessingEngine());
+
+    static int Main(string[] args)
     {
-        if (args.Length < 1)
+        if (!CliOptions.TryParse(args, out var options, out var parseError))
         {
-            Console.WriteLine("Please specify the path to the IFC and the output json.");
-            Console.WriteLine("Usage: ifc_metadata /path_to_file.ifc /path_to_file.json");
-            Console.WriteLine("Usage: ifc_metadata /path_to_file.ifc");
-            Console.WriteLine("       The file will be created in the directory of the source file, with the same name");
-
-            Environment.Exit(1);
+            Console.WriteLine(parseError);
+            PrintUsage();
+            return 1;
         }
 
-        var ifcSourceFile = new FileInfo(args[0]);
-        if (!ifcSourceFile.Exists)
+        if (!options.IfcSourceFile.Exists)
         {
-            Console.WriteLine($"File: {ifcSourceFile} does not exist.");
-            Environment.Exit(1);
+            Console.WriteLine($"File: {options.IfcSourceFile} does not exist.");
+            return 1;
         }
 
-        var jsonTargetFile = args.Length < 2 ? new FileInfo(Path.ChangeExtension(args[0], ".json")) : new FileInfo(args[1]);
         try
         {
-            MaterialExtractor mt = new MaterialExtractor(jsonTargetFile);
-            mt.Start(ifcSourceFile);
-
-            Environment.Exit(0);
+            var result = Router.Process(options.IfcSourceFile, options.JsonTargetFile, options.RequestedEngine);
+            PrintExecutionDetails(result.ExecutionDetails);
+            return 0;
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex);
-            Environment.Exit(1);
+            return 1;
         }
     }
+
+    private static void PrintUsage()
+    {
+        Console.WriteLine("Usage: ifc_metadata <source.ifc> [target.json] [--engine baseline|fast]");
+        Console.WriteLine("Default engine policy: fast with fallback to baseline.");
+    }
+
+    private static void PrintExecutionDetails(ExecutionDetails details)
+    {
+        Console.WriteLine($"Requested engine: {details.RequestedEngine}");
+        Console.WriteLine($"Effective engine: {details.EffectiveEngine}");
+        Console.WriteLine($"Fallback reason: {details.FallbackReason}");
+        Console.WriteLine($"Counters: attempts={details.Counters.Attempts}, success={details.Counters.Success}, fallbacks={details.Counters.Fallbacks}");
+    }
 }
+

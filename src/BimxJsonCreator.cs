@@ -431,7 +431,7 @@ public sealed class BimxJsonCreator : IDisposable
         _writerProperty.Flush();
         var jsonProperties = Encoding.UTF8.GetString(_bufferProperty.WrittenSpan);
 
-        using var stream = File.OpenWrite(_targetFile.FullName);
+        using var stream = File.Create(_targetFile.FullName);
         using var writer = new Utf8JsonWriter(stream, Jwo);
         writer.WriteStartObject();
 
@@ -457,13 +457,16 @@ public sealed class BimxJsonCreator : IDisposable
 
 public static class IfcExtensions
 {
-    public static void WritePropertiesArray(this Utf8JsonWriter writer, IItemSet<IIfcPropertySetDefinition> props)
+    extension(Utf8JsonWriter writer)
     {
-        writer.WriteStartArray("properties");
-        foreach (var item in props)
+        public void WritePropertiesArray(IItemSet<IIfcPropertySetDefinition> props)
         {
-            writer.WriteStringValue(item.GlobalId.ToString());
+            writer.WriteStartArray("properties");
+            foreach (var item in props)
+            {
+                writer.WriteStringValue(item.GlobalId.ToString());
+            }
+            writer.WriteEndArray();
         }
-        writer.WriteEndArray();
     }
 }
