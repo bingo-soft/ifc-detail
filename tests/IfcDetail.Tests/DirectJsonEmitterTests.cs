@@ -14,7 +14,7 @@ public sealed class DirectJsonEmitterTests
         var ifcFile = CreateTempIfcFile();
         var output = CreateTempJsonFile();
 
-        var model = new FastIfcStepParser().Parse(ifcFile, MemoryScalingOptions.Default);
+        var model = FastIfcStepParser.Parse(ifcFile, MemoryScalingOptions.Default);
         var composer = new FastIfcJsonComposer(JsonEmissionMode.PreserveOrder, enforceLastOccurrenceWins: true);
 
         composer.Write(output, model);
@@ -35,7 +35,7 @@ public sealed class DirectJsonEmitterTests
         var ifcFile = CreateTempIfcFile();
         var output = CreateTempJsonFile();
 
-        var model = new FastIfcStepParser().Parse(ifcFile, MemoryScalingOptions.Default);
+        var model = FastIfcStepParser.Parse(ifcFile, MemoryScalingOptions.Default);
         var composer = new FastIfcJsonComposer(JsonEmissionMode.Deterministic, enforceLastOccurrenceWins: true);
 
         composer.Write(output, model);

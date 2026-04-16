@@ -344,8 +344,8 @@ internal sealed record CliOptions(
     {
         requestedEngine = value switch
         {
-            var v when v.Equals("baseline", StringComparison.OrdinalIgnoreCase) => RequestedEngine.Baseline,
-            var v when v.Equals("fast", StringComparison.OrdinalIgnoreCase) => RequestedEngine.Fast,
+            _ when value.Equals("baseline", StringComparison.OrdinalIgnoreCase) => RequestedEngine.Baseline,
+            _ when value.Equals("fast", StringComparison.OrdinalIgnoreCase) => RequestedEngine.Fast,
             _ => RequestedEngine.Default
         };
 
@@ -356,9 +356,9 @@ internal sealed record CliOptions(
     {
         verbosity = value switch
         {
-            var v when v.Equals("none", StringComparison.OrdinalIgnoreCase) => CliVerbosity.None,
-            var v when v.Equals("timing", StringComparison.OrdinalIgnoreCase) => CliVerbosity.Timing,
-            var v when v.Equals("detailed", StringComparison.OrdinalIgnoreCase) => CliVerbosity.Detailed,
+            _ when value.Equals("none", StringComparison.OrdinalIgnoreCase) => CliVerbosity.None,
+            _ when value.Equals("timing", StringComparison.OrdinalIgnoreCase) => CliVerbosity.Timing,
+            _ when value.Equals("detailed", StringComparison.OrdinalIgnoreCase) => CliVerbosity.Detailed,
             _ => CliVerbosity.None
         };
 
@@ -371,9 +371,8 @@ internal sealed record CliOptions(
     {
         progress = value switch
         {
-            var v when v.Equals("completed", StringComparison.OrdinalIgnoreCase) => CliProgress.Completed,
-            var v when v.Equals("remaining", StringComparison.OrdinalIgnoreCase) => CliProgress.Remaining,
-            var v when v.Equals("none", StringComparison.OrdinalIgnoreCase) => CliProgress.None,
+            _ when value.Equals("completed", StringComparison.OrdinalIgnoreCase) => CliProgress.Completed,
+            _ when value.Equals("remaining", StringComparison.OrdinalIgnoreCase) => CliProgress.Remaining,
             _ => CliProgress.None
         };
 
@@ -386,8 +385,8 @@ internal sealed record CliOptions(
     {
         mode = value switch
         {
-            var v when v.Equals("none", StringComparison.OrdinalIgnoreCase) => IntermediateStoreMode.Disabled,
-            var v when v.Equals("mmf", StringComparison.OrdinalIgnoreCase) => IntermediateStoreMode.MemoryMapped,
+            _ when value.Equals("none", StringComparison.OrdinalIgnoreCase) => IntermediateStoreMode.Disabled,
+            _ when value.Equals("mmf", StringComparison.OrdinalIgnoreCase) => IntermediateStoreMode.MemoryMapped,
             _ => IntermediateStoreMode.Disabled
         };
 
@@ -399,9 +398,6 @@ internal sealed record CliOptions(
     {
         return requestedEngine switch
         {
-            RequestedEngine.Baseline => IntermediateStoreMode.Disabled,
-            RequestedEngine.Fast => IntermediateStoreMode.MemoryMapped,
-            RequestedEngine.Default => IntermediateStoreMode.MemoryMapped,
             _ => IntermediateStoreMode.Disabled
         };
     }

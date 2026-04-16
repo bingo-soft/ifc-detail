@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+### Changed
+- Fast parser переведен на потоковый разбор в режиме `--intermediate-store none` без `File.ReadAllText`, с выборочным парсингом только релевантных IFC-типов.
+- Для fast/default policy режим `--intermediate-store` по умолчанию переключен на `none`.
+- Обновлены CLI help и тесты парсинга опций под новый дефолт intermediate-store.
+
+### Fixed
+- Снижены пиковые аллокации fast-пути: убраны лишние кэши строк и пустые списки значений в промежуточной модели STEP.
+
+### Removed
+
+### Security
+
 ## [0.0.11] - 2026-04-16
 
 ### Added

@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -51,7 +49,6 @@ internal class MaterialExtractor(FileInfo jsonTargetFile, OutputWriteOptions? ou
         EmitEntities(model.Instances.OfType<IIfcWindowLiningProperties>(), jsonWriter);
 
         jsonWriter.CreateJson();
-
     }
 
     private static void EmitEntities<T>(IEnumerable<T> entities, BimxJsonCreator jsonWriter)

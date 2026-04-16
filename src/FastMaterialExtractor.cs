@@ -15,7 +15,7 @@ internal sealed class FastMaterialExtractor(
 
     public void Start(FileInfo ifcFileInfo)
     {
-        var model = Parser.Parse(ifcFileInfo, memoryScalingOptions ?? MemoryScalingOptions.Default);
+        var model = FastIfcStepParser.Parse(ifcFileInfo, memoryScalingOptions ?? MemoryScalingOptions.Default);
         _composer.Write(jsonTargetFile, model, outputWriteOptions ?? OutputWriteOptions.Default);
     }
 }

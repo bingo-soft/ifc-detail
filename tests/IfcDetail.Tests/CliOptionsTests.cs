@@ -17,7 +17,7 @@ public sealed class CliOptionsTests
         Assert.Equal(RequestedEngine.Default, options.RequestedEngine);
         Assert.Equal(CliVerbosity.Detailed, options.Verbosity);
         Assert.Equal(CliProgress.None, options.Progress);
-        Assert.Equal(IntermediateStoreMode.MemoryMapped, options.MemoryScalingOptions.Mode);
+        Assert.Equal(IntermediateStoreMode.Disabled, options.MemoryScalingOptions.Mode);
         Assert.False(options.IsHelpRequested);
         Assert.Equal("sample.json", options.JsonTargetFile.Name);
     }
@@ -110,15 +110,12 @@ public sealed class CliOptionsTests
     }
 
     [Fact]
-    public void Segment_size_option_must_be_allowed_without_explicit_mode_for_default_fast_policy()
+    public void Segment_size_option_must_require_explicit_mmf_mode_for_default_policy()
     {
-        var ok = CliOptions.TryParse(["source.ifc", "--segment-size-kb", "128"], out var options, out var error);
+        var ok = CliOptions.TryParse(["source.ifc", "--segment-size-kb", "128"], out _, out var error);
 
-        Assert.True(ok);
-        Assert.True(string.IsNullOrEmpty(error));
-        Assert.NotNull(options);
-        Assert.Equal(IntermediateStoreMode.MemoryMapped, options.MemoryScalingOptions.Mode);
-        Assert.Equal(128 * 1024, options.MemoryScalingOptions.SegmentSizeBytes);
+        Assert.False(ok);
+        Assert.Contains("require --intermediate-store mmf", error);
     }
 
     [Fact]
