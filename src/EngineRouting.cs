@@ -54,7 +54,7 @@ internal sealed class BaselineProcessingEngine : IProcessingEngine
 
 internal sealed class FastProcessingEngine : IProcessingEngine
 {
-    private static readonly Regex HeaderSchemaRegex = new("FILE_SCHEMA\\s*\\(\\s*\\(\\s*'([^']+)'", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex HeaderSchemaRegex = new("FILE_SCHEMA\\s*\\(\\s*\\(\\s*'([^']+)'", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     public EffectiveEngine Engine => EffectiveEngine.Fast;
 
