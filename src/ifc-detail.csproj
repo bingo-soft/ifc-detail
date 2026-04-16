@@ -7,9 +7,10 @@
         <Title>ifc_detail</Title>
         <Authors>Bingosoft</Authors>
         <Copyright>Bingosoft</Copyright>
-        <AssemblyVersion>0.0.11</AssemblyVersion>
-        <FileVersion>$(AssemblyVersion)</FileVersion>
-        <Version>$(AssemblyVersion)</Version>
+                <AssemblyVersion>0.0.12</AssemblyVersion>
+        <FileVersion>0.0.12</FileVersion>
+        <Version>0.0.12</Version>
+        <InformationalVersion>0.0.12</InformationalVersion>
         <ServerGarbageCollection>false</ServerGarbageCollection>
         <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
         <ImplicitUsings>disable</ImplicitUsings>
