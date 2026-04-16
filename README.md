@@ -1,26 +1,26 @@
 # ifc-detail
 
-CLI-инструмент для извлечения данных из IFC в JSON (секции `materials`, `types`, `properties`).
+CLI tool for extracting data from IFC into JSON (sections: `materials`, `types`, `properties`).
 
-## Требования
+## Requirements
 
 - .NET SDK 10.0
 
-## Сборка
+## Build
 
 ```powershell
 dotnet build ifc-detail.sln -c Release
 ```
 
-## Запуск
+## Run
 
 ```powershell
 dotnet run --project src/ifc-detail.csproj -- "<source.ifc>" "<target.json>"
 ```
 
-Если `target.json` не указан, создаётся файл рядом с IFC с тем же именем и расширением `.json`.
+If `target.json` is not specified, a file is created next to the IFC file with the same name and the `.json` extension.
 
-## Ключевые параметры CLI
+## Key CLI parameters
 
 ```text
 --engine baseline|fast
@@ -33,49 +33,49 @@ dotnet run --project src/ifc-detail.csproj -- "<source.ifc>" "<target.json>"
 --spill-dir <path>
 ```
 
-## Текущее поведение по умолчанию
+## Current default behavior
 
-- Политика движка: `fast` с fallback на `baseline`.
-- `--intermediate-store` по умолчанию: `none`.
-- `--segment-size-kb` и `--spill-dir` допустимы только вместе с `--intermediate-store mmf`.
+- Engine policy: `fast` with fallback to `baseline`.
+- Default `--intermediate-store`: `none`.
+- `--segment-size-kb` and `--spill-dir` are valid only with `--intermediate-store mmf`.
 
-## Рекомендуемый профиль для больших IFC
+## Recommended profile for large IFC files
 
-Для максимальной скорости и умеренной памяти используйте:
+For maximum speed with moderate memory usage:
 
 ```powershell
 dotnet run --project src/ifc-detail.csproj -- "<source.ifc>" "<target.json>" --engine fast --intermediate-store none --verbosity detailed
 ```
 
-## Профили запуска
+## Run profiles
 
-### 1) Baseline (контрольный)
+### 1) Baseline (control)
 
 ```powershell
 dotnet run --project src/ifc-detail.csproj -- "<source.ifc>" "<target.json>" --engine baseline --verbosity detailed
 ```
 
-### 2) Fast + none (предпочтительный)
+### 2) Fast + none (preferred)
 
 ```powershell
 dotnet run --project src/ifc-detail.csproj -- "<source.ifc>" "<target.json>" --engine fast --intermediate-store none --verbosity detailed
 ```
 
-### 3) Fast + mmf (при необходимости spill/сегментации)
+### 3) Fast + mmf (when spill/segmentation is required)
 
 ```powershell
 dotnet run --project src/ifc-detail.csproj -- "<source.ifc>" "<target.json>" --engine fast --intermediate-store mmf --segment-size-kb 1024 --spill-dir "<temp_dir>" --verbosity detailed
 ```
 
-## Формат вывода
+## Output format
 
-JSON-объект с секциями:
+JSON object with sections:
 
 - `materials`
 - `types`
 - `properties`
 
-## Тесты
+## Tests
 
 ```powershell
 dotnet test tests/IfcDetail.Tests/IfcDetail.Tests.csproj

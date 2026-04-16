@@ -1,21 +1,22 @@
 # Changelog Policy
 
-Основано на Keep a Changelog
-Адаптировано под ежедневные релизы и автоматизацию.
+Based on Keep a Changelog.
+Adapted for frequent releases and automation.
 
 ---
 
-## 📌 Общие принципы
+## 📌 General principles
 
-1. Changelog ведётся в одном файле `CHANGELOG.md`
-2. Новые записи добавляются **сверху**
-3. Используется **дата + время**
-4. Источник правды — **Conventional Commits**
-5. Changelog читается людьми (не только машинами)
+1. Maintain changelog in a single file: `CHANGELOG.md`.
+2. Add new entries at the **top**.
+3. Use **date + time**.
+4. Source of truth: **Conventional Commits**.
+5. Changelog must be readable by humans (not only machines).
+6. All repository documents and text files must be written in English.
 
 ---
 
-## 📦 Структура файла
+## 📦 File structure
 
 ```id="cl1"
 # Changelog
@@ -34,51 +35,51 @@
 
 ---
 
-## 🔄 Секция Unreleased
+## 🔄 Unreleased section
 
-### Назначение
+### Purpose
 
-* накапливает изменения между релизами
-* автоматически пополняется из commit'ов
-* очищается при релизе
-
----
-
-### Правила
-
-* всегда находится **в самом верху**
-* всегда присутствует
-* содержит только **нерелизные изменения**
+* accumulates changes between releases
+* is automatically updated from commits
+* is cleared during release
 
 ---
 
-## 🚀 Процесс релиза
+### Rules
 
-При создании новой версии:
+* always stays at the **top**
+* always exists
+* contains only **not-yet-released changes**
 
-1. Содержимое `Unreleased` переносится в новую версию
-2. Добавляется timestamp:
+---
+
+## 🚀 Release process
+
+When creating a new version:
+
+1. Move `Unreleased` content into the new version section.
+2. Add timestamp:
 
 ```id="cl2"
 YYYY-MM-DD HH:mm
 ```
 
-3. Создаётся новая пустая секция `Unreleased`
+3. Recreate an empty `Unreleased` section.
 
 ---
 
-### Пример
+### Example
 
-До релиза:
+Before release:
 
 ```id="cl3"
 ## [Unreleased]
 
 ### Added
-- Новый API
+- New API
 ```
 
-После релиза:
+After release:
 
 ```id="cl4"
 ## [Unreleased]
@@ -86,65 +87,65 @@ YYYY-MM-DD HH:mm
 ## [2.8.0] - 2026-04-16 18:42
 
 ### Added
-- Новый API
+- New API
 ```
 
 ---
 
-## 🧱 Категории
+## 🧱 Categories
 
-Используются стандартные категории:
+Use standard categories:
 
-* Added — новая функциональность
-* Changed — изменения поведения / улучшения
-* Fixed — исправления ошибок
-* Removed — удалённый функционал
-* Security — безопасность
+* Added — new functionality
+* Changed — behavior changes / improvements
+* Fixed — bug fixes
+* Removed — removed functionality
+* Security — security changes
 
 ---
 
-## 🔁 Маппинг с Conventional Commits
+## 🔁 Conventional Commit mapping
 
-| Commit   | Changelog             |
-| -------- | --------------------- |
-| feat     | Added                 |
-| fix      | Fixed                 |
-| perf     | Changed               |
-| refactor | Changed               |
-| docs     | (обычно пропускается) |
-| chore    | (опционально)         |
+| Commit   | Changelog          |
+| -------- | ------------------ |
+| feat     | Added              |
+| fix      | Fixed              |
+| perf     | Changed            |
+| refactor | Changed            |
+| docs     | (usually skipped)  |
+| chore    | (optional)         |
 
 ---
 
 ## ⚠️ Breaking Changes
 
-Если commit содержит:
+If a commit contains:
 
 ```id="cl5"
 BREAKING CHANGE
 ```
 
-Тогда:
+Then:
 
-* добавляется в `Changed`
-* помечается явно:
+* add it to `Changed`
+* mark it explicitly:
 
 ```id="cl6"
 ### Changed
-- ⚠️ Изменён контракт API (breaking change)
+- ⚠️ API contract changed (breaking change)
 ```
 
 ---
 
-## ⏱ Формат даты
+## ⏱ Date format
 
-Рекомендуется:
+Recommended:
 
 ```id="cl7"
 YYYY-MM-DD HH:mm
 ```
 
-Пример:
+Example:
 
 ```id="cl8"
 2026-04-16 18:42
@@ -152,41 +153,41 @@ YYYY-MM-DD HH:mm
 
 ---
 
-## 🔼 Порядок записей
+## 🔼 Entry order
 
-* новые версии добавляются сверху
-* внутри секций — порядок не критичен, но лучше хронологический
-
----
-
-## 🤖 Автоматизация
-
-Changelog должен:
-
-* генерироваться из commit'ов
-* обновляться при CI
-* не редактироваться вручную (кроме финальной чистки)
+* add newer versions above older ones
+* inside sections, any order is acceptable, chronological is preferred
 
 ---
 
-## 🧠 Правила качества
+## 🤖 Automation
 
-* короткие, понятные формулировки
-* без технического шума (ID задач, если не нужно)
-* ориентировано на разработчиков
+Changelog should:
 
----
-
-## 🚫 Запрещено
-
-* редактировать старые версии
-* смешивать unreleased и релизные изменения
-* писать changelog без commit'ов
-* дублировать записи
+* be generated from commits
+* be updated in CI
+* not be edited manually (except final cleanup)
 
 ---
 
-## ✅ Пример полного changelog
+## 🧠 Quality rules
+
+* short and clear wording
+* no technical noise (task IDs only when needed)
+* developer-oriented language
+
+---
+
+## 🚫 Forbidden
+
+* editing old released versions
+* mixing unreleased and released changes
+* writing changelog entries without commits
+* duplicate entries
+
+---
+
+## ✅ Full changelog example
 
 ```id="cl9"
 # Changelog
@@ -194,19 +195,20 @@ Changelog должен:
 ## [Unreleased]
 
 ### Fixed
-- Исправлен редкий race condition
+- Fixed a rare race condition
 
 ---
 
 ## [2.7.3] - 2026-04-16 18:42
 
 ### Fixed
-- Исправлен краш при старте
+- Fixed crash at startup
 
 ---
 
 ## [2.7.2] - 2026-04-16 14:10
 
 ### Changed
-- Оптимизация запросов
+- Query optimization
 ```
+

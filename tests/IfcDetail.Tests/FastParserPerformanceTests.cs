@@ -43,7 +43,7 @@ public sealed class FastParserPerformanceTests
         var fastJson = File.ReadAllText(fastOutput.FullName);
 
         Assert.Equal(NormalizeJson(baselineJson), NormalizeJson(fastJson));
-        Assert.Contains("По ум", fastJson, StringComparison.Ordinal);
+        Assert.Contains("By default", fastJson, StringComparison.Ordinal);
         Assert.DoesNotContain("\\X2\\", fastJson, StringComparison.Ordinal);
     }
 
@@ -127,9 +127,9 @@ public sealed class FastParserPerformanceTests
             "FILE_SCHEMA(('IFC4'));",
             "ENDSEC;",
             "DATA;",
-            "#1=IFCPROPERTYSINGLEVALUE('FireRating',$,IFCLABEL('\\X2\\041F043E\\X0\\ \\X2\\0443043C\\X0\\'),$);",
+            "#1=IFCPROPERTYSINGLEVALUE('FireRating',$,IFCLABEL('\\X2\\00420079002000640065006600610075006C0074\\X0\\'),$);",
             "#2=IFCPROPERTYSET('PSET-UNICODE',$,'Pset_WallCommon',$,(#1));",
-            "#3=IFCMATERIAL('\\X2\\041F043E\\X0\\ \\X2\\0443043C\\X0\\',$,$);",
+            "#3=IFCMATERIAL('\\X2\\00420079002000640065006600610075006C0074\\X0\\',$,$);",
             "#4=IFCMATERIALLAYER(#3,200.,$,$,$,$,$);",
             "#5=IFCMATERIALLAYERSET((#4),'LayerSet',$);",
             "#6=IFCMATERIALLAYERSETUSAGE(#5,.AXIS2.,.POSITIVE.,0.,$);",

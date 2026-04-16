@@ -1,132 +1,133 @@
-# Предложения по предельным оптимизациям IFC→JSON
+# Extreme IFC→JSON Optimization Proposals
 
-## 1) Предельные оптимизации в текущем подходе (включая «грязные»)
+## 1) Extreme optimizations in the current approach (including “dirty” ones)
 
-### A. Убрать главный источник памяти: `string` для каждого токена
-- Хранить `offset+length` в общем byte/char буфере вместо `string`.
-- Декодировать в `string` только при записи JSON.
-- Для значений вне контракта JSON не делать материализацию вообще.
+### A. Remove the main memory source: `string` per token
+- Store `offset+length` in a shared byte/char buffer instead of `string`.
+- Decode to `string` only when writing JSON.
+- Do not materialize values that are outside the JSON contract.
 
-Эффект: сильное снижение heap (часто -30..-60% на текстовых данных).
+Effect: significant heap reduction (often -30..-60% for text-heavy data).
 
-### B. Двухпроходный режим для больших файлов
-**Проход 1 (индексация):**
-- Сохранить минимум: `entityId -> fileOffset`, `entityId -> typeCode`, компактные ссылки только для нужных типов.
-- Не хранить аргументы целиком.
+### B. Two-pass mode for large files
+**Pass 1 (indexing):**
+- Keep only the minimum: `entityId -> fileOffset`, `entityId -> typeCode`, compact references for relevant types only.
+- Do not store full argument payloads.
 
-**Проход 2 (эмиссия):**
-- Подчитывать сущности по offset.
-- Писать JSON потоково.
+**Pass 2 (emission):**
+- Re-read entities by offset.
+- Write JSON in streaming mode.
 
-Эффект: резкое снижение памяти, цена — дополнительный I/O.
+Effect: major memory reduction at the cost of extra I/O.
 
-### C. Типы как `enum/int`, а не `string`
-- Парсинг type name в `EntityTypeCode`.
-- Switch/фильтры по int.
-- Единая таблица `int -> utf8-name`.
+### C. Represent types as `enum/int` instead of `string`
+- Parse type names into `EntityTypeCode`.
+- Use switch/filters by int.
+- Keep one table `int -> utf8-name`.
 
-Эффект: меньше аллокаций, быстрее ветвления.
+Effect: fewer allocations, faster branching.
 
-### D. Убрать `double` там, где не нужно
-- Для JSON хранить число как slice исходного STEP (offset/length).
-- Нормализовать только где требуется.
+### D. Remove `double` where not required
+- For JSON, store numbers as slices of original STEP text (offset/length).
+- Normalize only where required.
 
-Эффект: меньше CPU и аллокаций на numeric parsing.
+Effect: lower CPU and allocations for numeric parsing.
 
 ### E. `Utf8JsonWriter` + `IBufferWriter<byte>` + preencoded names
-- Использовать `JsonEncodedText` для повторяющихся property names.
-- Минимизировать промежуточные `string`.
-- По возможности писать из `ReadOnlySpan<byte>`.
+- Use `JsonEncodedText` for recurring property names.
+- Minimize intermediate `string` allocations.
+- Write directly from `ReadOnlySpan<byte>` where possible.
 
-Эффект: умеренное снижение CPU и GC.
+Effect: moderate CPU and GC reduction.
 
-### F. Пулы и аренда памяти везде
-- `ArrayPool<T>` для списков аргументов, стеков скобок, временных буферов.
-- `ValueListBuilder<T>`-подобные структуры для коротких списков.
-- Строгий возврат в пул через `try/finally`.
+### F. Pooling and rented memory everywhere
+- `ArrayPool<T>` for argument lists, bracket stacks, temporary buffers.
+- `ValueListBuilder<T>`-like structures for short lists.
+- Strict return-to-pool via `try/finally`.
 
-Риск: use-after-return/повреждение данных.
+Risk: use-after-return/data corruption.
 
-### G. Unsafe/Span-сканер (грязный, но быстрый)
-- `unsafe` + указатели на mmap/view buffer.
-- ASCII fast-path без тяжёлых проверок.
-- Ручной DFA parser без рекурсии.
+### G. Unsafe/Span scanner (dirty but fast)
+- `unsafe` + pointers to mmap/view buffers.
+- ASCII fast-path with minimal checks.
+- Manual DFA parser without recursion.
 
-Эффект: максимум CPU, но высокая хрупкость кода.
+Effect: maximum CPU performance, but fragile code.
 
-### H. Жёсткий selective extraction
-- Если нужен только контракт `materials/types/properties`, игнорировать остальное на символном уровне.
-- Не строить общий STEP AST.
+### H. Strict selective extraction
+- If only `materials/types/properties` is needed, ignore everything else at character-scan level.
+- Do not build a generic STEP AST.
 
-Эффект: максимум speed/memory при фиксированном контракте.
+Effect: maximum speed/memory gains for a fixed contract.
 
-### I. Внешняя сортировка/дедуп без RAM
-- Писать `key+offset` во временный файл.
-- Делать external sort (chunk + merge).
-- Эмитить финальный JSON по отсортированному ключу.
+### I. External sort/dedup without RAM growth
+- Write `key+offset` pairs into a temp file.
+- Run external sort (chunk + merge).
+- Emit final JSON by sorted key.
 
-Эффект: низкая RAM на больших файлах при deterministic режиме.
+Effect: low RAM for large files in deterministic mode.
 
-### J. Runtime/GC трюки
-- `GCSettings.LatencyMode = SustainedLowLatency` на hot stage.
-- `GC.TryStartNoGCRegion(...)` для короткого окна.
+### J. Runtime/GC tricks
+- `GCSettings.LatencyMode = SustainedLowLatency` for hot stages.
+- `GC.TryStartNoGCRegion(...)` for short windows.
 - Server GC + affinity.
 
-Риск: нестабильность и деградация в хвостах.
+Risk: instability and tail-latency degradation.
 
 ---
 
-## 2) Архитектура «с нуля» для fast IFC→JSON с низкой памятью
+## 2) “From-scratch” architecture for fast IFC→JSON with low memory
 
-### Цель
-Не парсить весь IFC целиком, а извлекать только данные целевого контракта.
+### Goal
+Do not parse the whole IFC model. Extract only data required by the target contract.
 
-### Слои
+### Layers
 
 1. **Input Layer**
-   - `MemoryMappedFile` или buffered stream.
-   - Единый scanner над `ReadOnlySpan<byte>` (предпочтительно UTF-8).
+   - `MemoryMappedFile` or buffered stream.
+   - One scanner over `ReadOnlySpan<byte>` (preferably UTF-8).
 
 2. **Lexer/Scanner (DFA)**
-   - Токены без аллокаций: `offset/len/type`.
-   - Строки/числа — slices, не `string/double`.
+   - Allocation-free tokens: `offset/len/type`.
+   - Strings/numbers as slices, not `string/double`.
 
 3. **Selective Entity Parser**
-   - Чтение `#id=TYPE(...)`.
-   - Мгновенный discard нерелевантных типов.
-   - Для релевантных извлекать только нужные поля/ссылки.
+   - Parse `#id=TYPE(...)`.
+   - Immediately discard irrelevant types.
+   - For relevant ones, extract only required fields/references.
 
 4. **Compact Index Store**
    - SoA: `ids[]`, `typeCodes[]`, `argRefOffsets[]`, `argRefValues[]`.
-   - Текст: `(bufferId, offset, len)`.
-   - Spill в temp binary pages при лимите памяти.
+   - Text references as `(bufferId, offset, len)`.
+   - Spill into temp binary pages at memory limit.
 
 5. **Reference Resolver**
-   - Минимальные карты: `id -> compactIndex`.
-   - Спец-индексы только для нужных relation (например layer->layerSet).
-   - Без общего графа.
+   - Minimal maps: `id -> compactIndex`.
+   - Specialized indexes only for required relations (for example layer->layerSet).
+   - No full entity graph.
 
 6. **Emitter Pipeline**
-   - Потоковая запись JSON по секциям.
-   - Для deterministic/dedup — отдельный key-index stage.
-   - Без DOM и без `JsonDocument`.
+   - Streaming JSON output by sections.
+   - Separate key-index stage for deterministic/dedup mode.
+   - No DOM and no `JsonDocument`.
 
 7. **Execution Modes**
-   - `ultra-fast`: preserve order, без sort.
+   - `ultra-fast`: preserve order, no sort.
    - `low-mem`: two-pass + external structures.
-   - `compat`: более строгая валидация/совместимость.
+   - `compat`: stricter validation/compatibility.
 
-### Базовые принципы
-- Без объектного графа сущностей.
-- Без ранней материализации строк.
-- Фильтрация типов как можно раньше.
+### Core principles
+- No object graph of entities.
+- No early string materialization.
+- Filter entity types as early as possible.
 - Single-writer JSON.
 - Data-oriented SoA.
-- Явный memory budget (например 512MB) + spill.
+- Explicit memory budget (for example 512MB) + spill.
 
-### Приоритет внедрения (максимальный эффект)
-1. `offset/length` вместо `string`.
+### Implementation priority (highest impact)
+1. `offset/length` instead of `string`.
 2. Two-pass selective extraction.
-3. `int` type codes + zero-alloc scanner.
-4. External sort/dedup (если нужен deterministic).
+3. `int` type codes + zero-allocation scanner.
+4. External sort/dedup (if deterministic output is required).
 5. `unsafe` fast-path.
+

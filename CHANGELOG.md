@@ -12,119 +12,131 @@
 
 ### Security
 
+## [0.0.13] - 2026-04-16 18:19
+
+### Added
+- Added a repository policy rule requiring English for all documents and text files.
+
+### Changed
+- Translated project documentation and policy files to English (`README.md`, `optimization-proposals.md`, `changelog_policy.md`).
+- Translated existing changelog entries to English for consistency.
+
+### Fixed
+- Updated Unicode escape coverage in `FastParserPerformanceTests` to validate English decoded text (`By default`) instead of Russian text.
+
 ## [0.0.12] - 2026-04-16 18:05
 
 ### Added
-- Добавлен `README.md` с актуальными CLI-параметрами, профилями запуска и рекомендацией `fast + none` для крупных IFC.
+- Added `README.md` with up-to-date CLI parameters, run profiles, and the recommended `fast + none` setup for large IFC files.
 
 ### Changed
-- Fast parser переведен на потоковый разбор в режиме `--intermediate-store none` без `File.ReadAllText`, с выборочным парсингом только релевантных IFC-типов.
-- Для fast/default policy режим `--intermediate-store` по умолчанию переключен на `none`.
-- Обновлены CLI help и тесты парсинга опций под новый дефолт intermediate-store.
+- Switched the fast parser to streaming mode for `--intermediate-store none` without `File.ReadAllText`, with selective parsing of relevant IFC types only.
+- Changed the default `--intermediate-store` for fast/default policy to `none`.
+- Updated CLI help and option-parsing tests for the new intermediate-store default.
 
 ### Fixed
-- Снижены пиковые аллокации fast-пути: убраны лишние кэши строк и пустые списки значений в промежуточной модели STEP.
+- Reduced peak allocations on the fast path by removing redundant string caches and empty value lists in the intermediate STEP model.
 
 ## [0.0.11] - 2026-04-16
 
 ### Added
-- Добавлены параметры memory scaling fast-парсера: `MemoryScalingOptions`, режимы `none|mmf`, сегментация чтения (`--segment-size-kb`) и директория spill (`--spill-dir`).
-- Добавлен MMF parity-тест fast-пути на синтетическом типовом IFC датасете.
+- Added memory-scaling options for the fast parser: `MemoryScalingOptions`, `none|mmf` modes, read segmentation (`--segment-size-kb`), and spill directory (`--spill-dir`).
+- Added an MMF parity test for the fast path on a synthetic typical IFC dataset.
 
 ### Changed
-- Для fast/default policy режим `--intermediate-store` по умолчанию переключен на `mmf`; для baseline по умолчанию сохранен `none`.
-- Обновлен CLI help: добавлены параметры промежуточного хранилища и уточнены правила валидации.
-- Роутинг движков и fast extractor обновлены для прокидывания `MemoryScalingOptions` через весь pipeline.
+- Changed the default `--intermediate-store` for fast/default policy to `mmf`; baseline default remains `none`.
+- Updated CLI help with intermediate-store options and clarified validation rules.
+- Updated engine routing and fast extractor to pass `MemoryScalingOptions` through the full pipeline.
 
 ### Fixed
-- Исправлен MMF spill-path: перед чтением spill-файла writer теперь закрывается, устранен `IOException` и fallback на baseline на крупных IFC.
-- Ускорена потоковая обработка DATA/ENDSEC в MMF-режиме: убраны лишние строковые аллокации в посимвольном цикле и стабилизирована детекция STEP entity в stream-парсере.
+- Fixed MMF spill path: the writer is now closed before reading spill files, removing `IOException` and baseline fallback on large IFC files.
+- Accelerated DATA/ENDSEC streaming in MMF mode by removing redundant string allocations in the character loop and stabilizing STEP entity detection in the stream parser.
 
 ## [0.0.10] - 2026-04-16 16:01
 
 ### Added
-- Добавлено кэширование нормализации строк в fast STEP builder (`_typeNameCache`, `_stringNormalizationCache`) для повторно встречающихся значений.
-- Добавлено кэширование `GlobalId` в `FastIfcDataModel` для повторных обращений в JSON эмиттере.
-- Добавлено использование `ArrayPool<char>` в парсинге STEP-строковых литералов для временных буферов.
+- Added string-normalization caching in fast STEP builder (`_typeNameCache`, `_stringNormalizationCache`) for repeated values.
+- Added `GlobalId` caching in `FastIfcDataModel` for repeated access in the JSON emitter.
+- Added `ArrayPool<char>` usage in STEP string-literal parsing for temporary buffers.
 
 ### Changed
-- Горячий путь baseline extractor очищен от LINQ `Concat`-цепочки: перечисление типов переведено на последовательные `foreach` через `EmitEntities`.
-- Числовой и токен-парсинг в `FastIfcStepParser.Scanner` переведён на `Span/ReadOnlySpan` (`ParseNumber`, `ParseIdentifier`, `ParseRawToken`) с уменьшением промежуточных строк.
-- Декодирование IFC Unicode escape-последовательностей переведено на `ReadOnlySpan<char>` с посимвольным hex parse без `Substring`/`char.ConvertFromUtf32`.
+- Cleaned baseline extractor hot path from LINQ `Concat` chains by switching type enumeration to sequential `foreach` via `EmitEntities`.
+- Switched numeric/token parsing in `FastIfcStepParser.Scanner` to `Span/ReadOnlySpan` (`ParseNumber`, `ParseIdentifier`, `ParseRawToken`) to reduce intermediate strings.
+- Switched IFC Unicode escape decoding to `ReadOnlySpan<char>` with character-wise hex parsing and no `Substring`/`char.ConvertFromUtf32`.
 
 ### Fixed
-- `ParseInt` теперь валидирует отсутствие цифр и выбрасывает `FastParseHeaderException` вместо неявного возврата некорректного значения.
-- Добавлена валидация диапазона Unicode code point при декодировании escape-блоков.
+- `ParseInt` now validates that digits are present and throws `FastParseHeaderException` instead of implicitly returning an invalid value.
+- Added Unicode code point range validation when decoding escape blocks.
 
 ## [0.0.9] - 2026-04-16 15:47
 
 ### Added
-- Добавлены CLI-параметры `--verbosity none|timing|detailed`, `--progress completed|remaining|none`, `--output-buffer-kb`, `--write-through[=true|false]`.
-- Добавлены тесты `CliOptionsTests` для новых режимов CLI и валидации комбинаций флагов.
-- Добавлен тип `OutputWriteOptions` и прокидывание параметров записи в baseline и fast pipeline.
+- Added CLI parameters `--verbosity none|timing|detailed`, `--progress completed|remaining|none`, `--output-buffer-kb`, `--write-through[=true|false]`.
+- Added `CliOptionsTests` for new CLI modes and flag-combination validation.
+- Added `OutputWriteOptions` and propagated output write settings through baseline and fast pipelines.
 
 ### Changed
-- Обновлён `--help`: описаны новые параметры, правила валидации и сохранение positional-вызова `<source.ifc> [target.json]`.
-- Реализован вывод `verbosity=timing` с форматированием длительности в `ms/s/m:ss/h:mm:ss`.
-- Реализован `verbosity=detailed`: вывод schema, requested/effective parser, fallback reason/count, counters, elapsed и peak memory.
-- Запись JSON переведена на `FileStreamOptions` с настройкой буфера и режима write-through во всех движках.
+- Updated `--help` with new options, validation rules, and positional invocation `<source.ifc> [target.json]`.
+- Implemented `verbosity=timing` output with duration formatting in `ms/s/m:ss/h:mm:ss`.
+- Implemented `verbosity=detailed` output: schema, requested/effective parser, fallback reason/count, counters, elapsed, and peak memory.
+- Switched JSON writing to `FileStreamOptions` with configurable buffering and write-through mode in all engines.
 
 ### Fixed
-- Для `--verbosity none` отключён runtime-вывод, включая прогресс и сообщения ошибок выполнения.
-- Добавлена валидация несовместимой комбинации `--verbosity none` c `--progress completed|remaining`.
+- Disabled runtime output for `--verbosity none`, including progress and runtime error messages.
+- Added validation for incompatible combination `--verbosity none` with `--progress completed|remaining`.
 
 ## [0.0.8] - 2026-04-16 13:52
 
 ### Added
-- Добавлены тесты `DirectJsonEmitterTests` для двух режимов эмиссии: preserve-order и deterministic.
-- Добавлена конфигурация fast extractor для выбора режима эмиссии и включения/отключения строгого dedup `last-occurrence-wins`.
+- Added `DirectJsonEmitterTests` for two emission modes: preserve-order and deterministic.
+- Added fast extractor configuration to choose emission mode and enable/disable strict `last-occurrence-wins` dedup.
 
 ### Changed
-- Fast JSON emitter переведён на прямую эмиссию по индексам через промежуточные `EmissionItem` без сборки JSON-документа в память.
-- Добавлены режимы вывода: `JsonEmissionMode.PreserveOrder` и `JsonEmissionMode.Deterministic`.
-- Для deterministic режима реализована стабильная сортировка ключей по `StringComparer.Ordinal`.
+- Switched fast JSON emitter to direct index-based emission via intermediate `EmissionItem` objects without building a full JSON document in memory.
+- Added output modes: `JsonEmissionMode.PreserveOrder` and `JsonEmissionMode.Deterministic`.
+- Implemented stable key sorting by `StringComparer.Ordinal` for deterministic mode.
 
 ### Fixed
-- Устранена запись дублей на уровне секций `materials/types/properties` при включённом строгом dedup, соблюдён контракт `last-occurrence-wins`.
-- Сохранён legacy-путь fast extractor без dedup для совместимости с текущим baseline parity потоком.
+- Removed duplicate writes in `materials/types/properties` sections when strict dedup is enabled, while preserving `last-occurrence-wins` behavior.
+- Kept legacy fast extractor path without dedup for compatibility with current baseline parity flow.
 
 ## [0.0.7] - 2026-04-16 12:45
 
 ### Summary
-- Реализован fast parsing слой без полной xbim object model с data-oriented индексами и декодированием IFC Unicode escape-последовательностей.
+- Implemented a fast parsing layer without full xbim object model, using data-oriented indexes and IFC Unicode escape decoding.
 
 ### Added
-- Новый lightweight STEP parser `FastIfcStepParser` с выделенным scanner/builder pipeline.
-- Data-oriented модель `StepEntityTable` (SoA массивы атрибутов и значений) и граф связей `EntityAdjacencyIndex` в формате offsets+edges.
-- Новый fast JSON composer `FastIfcJsonComposer`, формирующий контрактные секции `materials/types/properties` напрямую из fast-модели.
-- Тесты `FastParserPerformanceTests`:
-  - parity на минимальном IFC;
-  - проверка снижения alloc/времени на типовом датасете;
-  - проверка декодирования IFC Unicode (`\X2\...\X0\`, `\X4\...\X0\`).
+- New lightweight STEP parser `FastIfcStepParser` with dedicated scanner/builder pipeline.
+- Data-oriented model `StepEntityTable` (SoA arrays of attributes and values) and relation graph `EntityAdjacencyIndex` in offsets+edges format.
+- New fast JSON composer `FastIfcJsonComposer` that builds contract sections `materials/types/properties` directly from the fast model.
+- `FastParserPerformanceTests`:
+  - parity on minimal IFC;
+  - allocation/time reduction check on a typical dataset;
+  - IFC Unicode decoding verification (`\X2\...\X0\`, `\X4\...\X0\`).
 
 ### Changed
-- `FastMaterialExtractor` переведён с xbim `IfcStore.Open(...)` на fast-path: parse + compose.
-- В fast-модели добавлен предрасчёт индекса layer->layerSet для исключения runtime-дублей relation-структур.
+- Moved `FastMaterialExtractor` from xbim `IfcStore.Open(...)` to fast path: parse + compose.
+- Added precomputed layer->layerSet index in the fast model to avoid runtime duplicates in relation structures.
 
 ### Fixed
-- Валидация schema regex в `EngineRouting` ограничена таймаутом `TimeSpan.FromSeconds(1)` для защиты от зависания regex.
-- Строковые STEP-литералы в fast parser теперь декодируют IFC Unicode escape-последовательности в нормальный текст.
+- Limited schema regex validation in `EngineRouting` with `TimeSpan.FromSeconds(1)` timeout to prevent regex hangs.
+- STEP string literals in the fast parser now decode IFC Unicode escape sequences into normal text.
 
 ## [0.0.6] - 2026-04-16 12:01
 
 ### Summary
-- Добавлен роутинг движков выполнения с политикой fast→baseline fallback без изменения JSON-контракта результата.
+- Added execution engine routing with fast→baseline fallback policy, without changing the output JSON contract.
 
 ### Added
-- Параметр CLI `--engine baseline|fast` с default-политикой выбора движка.
-- Контракты и реализация `IProcessingEngine`, `EngineRouter`, `ExecutionDetails` и счётчиков попыток/успехов/fallback.
-- Тесты `EngineRouterTests` для сценариев baseline, fast и fallback-классификации.
+- CLI option `--engine baseline|fast` with default engine-selection policy.
+- Contracts and implementation for `IProcessingEngine`, `EngineRouter`, `ExecutionDetails`, and attempt/success/fallback counters.
+- `EngineRouterTests` for baseline, fast, and fallback-classification scenarios.
 
 ### Changed
-- `Program` переведён на маршрутизацию через `EngineRouter` и вывод execution details (requested/effective engine, fallback reason, counters).
+- Switched `Program` to route through `EngineRouter` and print execution details (requested/effective engine, fallback reason, counters).
 
 ### Fixed
-- Запись итогового JSON переведена на `File.Create(...)`, чтобы исключить хвост данных при перезаписи файла после fallback.
+- Switched final JSON write to `File.Create(...)` to prevent stale trailing data when overwriting output after fallback.
 
 ## 2026-04-16 — 0.0.5
 
@@ -137,3 +149,4 @@
 
 ### Fixed
 - Selection pipeline now skips incompatible IFC files during precheck instead of failing whole parity suite.
+
